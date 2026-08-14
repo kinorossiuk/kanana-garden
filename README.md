@@ -43,6 +43,27 @@ Codex가 실행되는 분석 호스트이자 LTE 보고서 수신 대상이다. 
 
 다른 SBC 경로는 운영 범위에 포함하지 않습니다.
 
+### DuckDNS 토큰 운영
+
+`rossiuk-server.duckdns.org`의 계정 토큰은 저장소나 Jenkins 작업 XML에 직접
+넣지 않습니다. 토큰을 재발급한 뒤 현재 분석 호스트에서 다음 두 명령으로
+저장하고 반영합니다.
+
+```bash
+./ops/report-host/store-duckdns-token.sh
+sudo ./ops/report-host/apply-duckdns-config.sh
+```
+
+첫 명령은 토큰을 화면에 표시하지 않고
+`~/.config/kanana-garden/secrets/duckdns-token`에 권한 `600`으로 저장합니다.
+두 번째 명령은 기존 설정을 보호 디렉터리에 백업한 뒤 호스트 갱신 스크립트,
+Jenkins의 읽기 전용 secret mount와 Certbot 갱신 설정에 반영합니다. Jenkins가
+정지 상태라면 다음 `docker compose up`부터 새 mount가 적용됩니다.
+
+`youtube_worker.py`는 DuckDNS 토큰을 사용하지 않고 호스트 이름만 사용하므로,
+DNS 갱신이 정상이라면 별도의 토큰 변경이 필요하지 않습니다. 토큰 값은 채팅,
+Git commit, 이슈 또는 빌드 로그에 붙여넣지 않습니다.
+
 ## 0단계: UIS7862S 제어 가능성 확인
 
 완성 LLM을 올리기 전에 작은 Android 제어 브리지로 다음 동작을 먼저 확인합니다.

@@ -21,10 +21,11 @@ cleanup() {
   rm -f "$temporary_file"
 }
 trap cleanup EXIT
-printf '%s\n' "$new_token" > "$temporary_file"
+printf '%s' "$new_token" > "$temporary_file"
 unset new_token
 chmod 0600 "$temporary_file"
 mv -f "$temporary_file" "$token_file"
 trap - EXIT
 
 echo "DuckDNS 토큰을 보호 파일에 저장했습니다: $token_file"
+echo "시스템 반영: sudo ./ops/report-host/apply-duckdns-config.sh"
