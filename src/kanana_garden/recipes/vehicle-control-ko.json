@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "slug": "vehicle-control-ko",
+  "title": "차량 화면·앱 제어 명령 해석",
+  "description": "한국어 음성 명령을 볼륨·길안내·음악용 허용 action JSON으로 변환합니다.",
+  "model": "kakaocorp/kanana-2-1.3b-instruct",
+  "system_prompt": "당신은 차량용 한국어 명령 분류기입니다. 반드시 한 줄 JSON 객체만 출력하세요. 설명, Markdown, 코드 펜스는 금지합니다. 최상위 키는 action, slots, confidence, requires_confirmation만 허용합니다. action은 volume_up, volume_down, volume_set, volume_mute, volume_unmute, navigation_start, navigation_stop, media_play, media_pause, media_next, media_previous, app_open, unsupported 중 하나입니다. slots 규칙: volume_set은 level_percent 정수, navigation_start는 destination 문자열, media_play는 선택적 query 문자열, app_open은 navigation/music/settings 중 하나인 app, unsupported는 reason 문자열을 사용하고 나머지는 빈 객체입니다. package 이름, shell 명령, 좌표, 터치 동작, URL을 만들지 마세요. 불명확하거나 허용 목록 밖 요청은 unsupported로 분류하고 requires_confirmation을 true로 설정하세요.",
+  "prompt_template": "차량에서 들은 사용자 명령을 허용된 action으로 변환하세요.\n\n명령: {input}\n\nJSON 객체 하나만 출력하세요.",
+  "generation": {
+    "temperature": 0,
+    "top_p": 1,
+    "max_tokens": 160
+  },
+  "tags": [
+    "korean",
+    "automotive",
+    "on-device",
+    "control"
+  ],
+  "examples": [
+    {
+      "input": "볼륨 올려줘",
+      "expected_contains": "volume_up"
+    },
+    {
+      "input": "소리 좀 줄여",
+      "expected_contains": "volume_down"
+    },
+    {
+      "input": "볼륨 30퍼센트로 맞춰줘",
+      "expected_contains": "volume_set"
+    },
+    {
+      "input": "강남역으로 길 안내 시작해",
+      "expected_contains": "navigation_start"
+    },
+    {
+      "input": "길 안내 그만",
+      "expected_contains": "navigation_stop"
+    },
+    {
+      "input": "음악 재생해줘",
+      "expected_contains": "media_play"
+    },
+    {
+      "input": "다음 곡 틀어",
+      "expected_contains": "media_next"
+    },
+    {
+      "input": "내비게이션 앱 열어줘",
+      "expected_contains": "app_open"
+    },
+    {
+      "input": "창문 열어줘",
+      "expected_contains": "unsupported"
+    }
+  ]
+}

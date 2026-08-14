@@ -17,7 +17,7 @@ test:
 
 validate:
 	$(KANANA) validate
-	$(KANANA) suite-validate pi5-parity-ko-v1
+	$(KANANA) suite-validate runtime-stability-ko-v1
 	$(KANANA) report-validate
 
 server-doctor:

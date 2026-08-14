@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "slug": "pi5-parity-ko-v1",
-  "title": "Raspberry Pi 5 한국어 런타임 패리티 v1",
+  "slug": "runtime-stability-ko-v1",
+  "title": "한국어 런타임 안정성 v1",
   "description": "공식 Transformers 구현과 온디바이스 후보 런타임을 32개 합성 한국어 과제로 비교합니다.",
   "model": "kakaocorp/kanana-2-1.3b-instruct",
   "generation": {

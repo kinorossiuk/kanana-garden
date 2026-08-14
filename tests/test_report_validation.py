@@ -5,16 +5,12 @@ import unittest
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
-from types import SimpleNamespace
-from unittest import mock
 
 from kanana_garden.eval_suite import evaluate_assertions, get_builtin_suite
-from kanana_garden.device import GIB, device_report
 from kanana_garden.parity import build_parity_report
 from kanana_garden.recipe import get_builtin_recipe
 from kanana_garden.report_validation import (
     load_assets,
-    validate_device_check,
     validate_model_check,
     validate_parity,
     validate_report_path,
@@ -52,7 +48,7 @@ def model_check_report() -> dict:
 
 
 def parity_report() -> tuple[dict, object]:
-    base_suite = get_builtin_suite("pi5-parity-ko-v1")
+    base_suite = get_builtin_suite("runtime-stability-ko-v1")
     case = next(case for case in base_suite.cases if case.id == "extract-contact")
     suite = replace(base_suite, cases=(case,))
     content = "02-1234-5678"
@@ -96,44 +92,6 @@ class ReportValidationTests(unittest.TestCase):
     def test_valid_model_check_is_recomputed(self) -> None:
         recipes, _ = load_assets()
         self.assertEqual(validate_model_check(model_check_report(), recipes), [])
-
-    def test_valid_device_check_and_tampering_are_recomputed(self) -> None:
-        with (
-            mock.patch(
-                "kanana_garden.device._device_model",
-                return_value="Raspberry Pi 5 Model B Rev 1.0",
-            ),
-            mock.patch(
-                "kanana_garden.device.platform.machine",
-                return_value="aarch64",
-            ),
-            mock.patch(
-                "kanana_garden.device._mem_total",
-                return_value=8 * GIB,
-            ),
-            mock.patch(
-                "kanana_garden.device.shutil.disk_usage",
-                return_value=SimpleNamespace(
-                    total=128 * GIB,
-                    used=20 * GIB,
-                    free=108 * GIB,
-                ),
-            ),
-            mock.patch(
-                "kanana_garden.device._temperature_c",
-                return_value=55.0,
-            ),
-            mock.patch(
-                "kanana_garden.device._throttled",
-                return_value="throttled=0x0",
-            ),
-        ):
-            report = device_report("/tmp", checked_at=CHECKED_AT)
-        self.assertEqual(validate_device_check(report), [])
-        report["checks"][0]["passed"] = False
-        self.assertTrue(
-            any(error.startswith("ready") for error in validate_device_check(report))
-        )
 
     def test_tampered_model_content_and_digest_are_rejected(self) -> None:
         recipes, _ = load_assets()

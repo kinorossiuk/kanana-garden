@@ -14,8 +14,8 @@ from .report_validation import load_report, validate_report
 TRUST_LABELS = {
     "schema-only": "스키마만 검증",
     "model-smoke-passed": "실모델 스모크 통과",
-    "pi5-baseline-passed": "Pi 5 기준선 통과",
-    "pi5-reboot-reproduced": "Pi 5 재부팅 재현",
+    "server-baseline-passed": "5600G 서버 기준선 통과",
+    "server-stability-reproduced": "5600G 재시작 안정성 재현",
 }
 
 
@@ -45,16 +45,20 @@ def _report_names(
     return sorted(path.name for path, _ in items)
 
 
-def _reboot_reproduced(
+def _stability_reproduced(
     baseline_items: Iterable[tuple[Path, dict[str, Any]]],
 ) -> bool:
-    boots_by_device: dict[str, set[str]] = {}
+    sessions_by_runtime: dict[tuple[str, str, str, str], set[str]] = {}
     for _, report in baseline_items:
-        device = report["device_before"]
-        boots_by_device.setdefault(device["device_id_sha256"], set()).add(
-            device["boot_id_sha256"]
+        runtime = report["runtime"]
+        key = (
+            report["profile"],
+            report["requested_model"],
+            runtime["revision"],
+            runtime["dtype"],
         )
-    return any(len(boot_ids) >= 2 for boot_ids in boots_by_device.values())
+        sessions_by_runtime.setdefault(key, set()).add(runtime["session_id"])
+    return any(len(session_ids) >= 2 for session_ids in sessions_by_runtime.values())
 
 
 def build_catalog(
@@ -71,7 +75,7 @@ def build_catalog(
     passed_baselines = [
         item
         for item in evidence
-        if item[1].get("kind") == "kanana-garden-pi5-baseline"
+        if item[1].get("kind") == "kanana-garden-server-baseline"
         and item[1].get("passed") is True
     ]
     passed_parity = [
@@ -80,13 +84,6 @@ def build_catalog(
         if item[1].get("kind") == "kanana-garden-runtime-parity"
         and item[1].get("passed") is True
     ]
-    ready_devices = [
-        item
-        for item in evidence
-        if item[1].get("kind") == "kanana-garden-device-check"
-        and item[1].get("ready") is True
-    ]
-
     catalog_recipes: list[dict[str, Any]] = []
     for recipe in recipe_list:
         recipe_model_checks = [
@@ -102,11 +99,11 @@ def build_catalog(
                 for stored_recipe in item[1]["recipes"]
             )
         ]
-        reboot_reproduced = _reboot_reproduced(recipe_baselines)
-        if reboot_reproduced:
-            trust_level = "pi5-reboot-reproduced"
+        stability_reproduced = _stability_reproduced(recipe_baselines)
+        if stability_reproduced:
+            trust_level = "server-stability-reproduced"
         elif recipe_baselines:
-            trust_level = "pi5-baseline-passed"
+            trust_level = "server-baseline-passed"
         elif recipe_model_checks:
             trust_level = "model-smoke-passed"
         else:
@@ -122,18 +119,22 @@ def build_catalog(
                 "trust_label": TRUST_LABELS[trust_level],
                 "evidence": {
                     "model_checks": _report_names(recipe_model_checks),
-                    "pi5_baselines": _report_names(recipe_baselines),
-                    "reboot_reproduced": reboot_reproduced,
+                    "server_baselines": _report_names(recipe_baselines),
+                    "stability_reproduced": stability_reproduced,
                 },
             }
         )
 
-    baseline_devices: dict[str, set[str]] = {}
+    baseline_runtimes: dict[tuple[str, str, str, str], set[str]] = {}
     for _, report in passed_baselines:
-        device = report["device_before"]
-        baseline_devices.setdefault(device["device_id_sha256"], set()).add(
-            device["boot_id_sha256"]
+        runtime = report["runtime"]
+        key = (
+            report["profile"],
+            report["requested_model"],
+            runtime["revision"],
+            runtime["dtype"],
         )
+        baseline_runtimes.setdefault(key, set()).add(runtime["session_id"])
     return {
         "schema_version": 1,
         "powered_by": "Kanana",
@@ -141,12 +142,11 @@ def build_catalog(
         "recipes": catalog_recipes,
         "evidence_summary": {
             "valid_report_count": len(evidence),
-            "ready_device_report_count": len(ready_devices),
             "passed_model_check_count": len(passed_model_checks),
-            "passed_pi5_baseline_count": len(passed_baselines),
-            "reboot_reproduced_device_count": sum(
-                len(boot_ids) >= 2
-                for boot_ids in baseline_devices.values()
+            "passed_server_baseline_count": len(passed_baselines),
+            "stability_reproduced_runtime_count": sum(
+                len(session_ids) >= 2
+                for session_ids in baseline_runtimes.values()
             ),
             "passed_parity_report_count": len(passed_parity),
         },
@@ -169,7 +169,7 @@ def render_catalog_markdown(catalog: dict[str, Any]) -> str:
         "**Powered by Kanana**",
         "",
         "이 문서는 현재 recipe와 `reports/*.json`을 재검산해 자동 생성합니다.",
-        "증빙이 없는 recipe는 품질이나 Raspberry Pi 동작이 확인된 것으로",
+        "증빙이 없는 recipe는 품질이나 5600G 안정성이 확인된 것으로",
         "간주하지 않습니다.",
         "",
         "## 현재 증빙",
@@ -177,10 +177,10 @@ def render_catalog_markdown(catalog: dict[str, Any]) -> str:
         f"- 레시피: {catalog['recipe_count']}개",
         f"- 유효한 실행 리포트: {summary['valid_report_count']}개",
         f"- 실모델 스모크 통과: {summary['passed_model_check_count']}건",
-        f"- Pi 5 기준선 통과: {summary['passed_pi5_baseline_count']}건",
+        f"- 5600G 서버 기준선 통과: {summary['passed_server_baseline_count']}건",
         (
-            "- Pi 5 재부팅 재현 장치: "
-            f"{summary['reboot_reproduced_device_count']}대"
+            "- 5600G 재시작 안정성 재현 구성: "
+            f"{summary['stability_reproduced_runtime_count']}개"
         ),
         f"- 런타임 패리티 통과: {summary['passed_parity_report_count']}건",
         "",
@@ -204,8 +204,8 @@ def render_catalog_markdown(catalog: dict[str, Any]) -> str:
             "",
             "- **스키마만 검증**: JSON 계약만 통과했으며 실모델 결과는 없습니다.",
             "- **실모델 스모크 통과**: 현재 recipe의 대표 기대 문자열을 통과했습니다.",
-            "- **Pi 5 기준선 통과**: 한 boot에서 반복 품질·성능·열 기준선을 통과했습니다.",
-            "- **Pi 5 재부팅 재현**: 같은 장치의 서로 다른 두 boot 기준선이 통과했습니다.",
+            "- **5600G 서버 기준선 통과**: 한 서버 세션에서 반복 품질·성능 기준선을 통과했습니다.",
+            "- **5600G 재시작 안정성 재현**: 같은 모델 설정의 서로 다른 두 서버 세션 기준선이 통과했습니다.",
             "",
             "문자열 기반 스모크와 내부 정합성 검사는 의미 품질이나 실행 출처를",
             "암호학적으로 보증하지 않습니다.",

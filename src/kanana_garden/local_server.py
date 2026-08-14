@@ -75,6 +75,9 @@ class TransformersBackend:
                 ) from exc
 
         self.model_id = model_id
+        self.revision = revision
+        self.dtype = dtype
+        self.host_profile = "ryzen-5-5600g"
         self.max_input_tokens = max_input_tokens
         self.max_output_tokens = max_output_tokens
         self.torch = torch
@@ -154,6 +157,17 @@ class LocalModelServer(ThreadingHTTPServer):
         super().__init__(server_address, LocalModelHandler)
         self.backend = backend
         self.api_key = api_key
+        self.session_id = str(uuid.uuid4())
+
+    def runtime_metadata(self) -> dict[str, Any]:
+        return {
+            "session_id": self.session_id,
+            "revision": str(getattr(self.backend, "revision", "unknown")),
+            "dtype": str(getattr(self.backend, "dtype", "unknown")),
+            "host_profile": str(
+                getattr(self.backend, "host_profile", "unknown")
+            ),
+        }
 
 
 class LocalModelHandler(BaseHTTPRequestHandler):
@@ -163,7 +177,14 @@ class LocalModelHandler(BaseHTTPRequestHandler):
         if not self._authorized():
             return
         if self.path == "/health":
-            self._json(HTTPStatus.OK, {"status": "ok", "model": self.server.backend.model_id})
+            self._json(
+                HTTPStatus.OK,
+                {
+                    "status": "ok",
+                    "model": self.server.backend.model_id,
+                    "kanana_garden": self.server.runtime_metadata(),
+                },
+            )
             return
         if self.path == "/v1/models":
             self._json(
@@ -175,6 +196,7 @@ class LocalModelHandler(BaseHTTPRequestHandler):
                             "id": self.server.backend.model_id,
                             "object": "model",
                             "owned_by": "kakaocorp",
+                            "kanana_garden": self.server.runtime_metadata(),
                         }
                     ],
                 },
@@ -331,6 +353,7 @@ def serve(
     )
     server = LocalModelServer((host, port), backend, api_key)
     print(f"Powered by Kanana — http://{host}:{port}/v1")
+    print(f"5600G server session: {server.session_id}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

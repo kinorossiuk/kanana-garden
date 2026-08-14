@@ -32,7 +32,7 @@ class CLITests(unittest.TestCase):
     def test_validate_builtins(self) -> None:
         status, stdout, stderr = self.invoke("validate")
         self.assertEqual(status, 0)
-        self.assertIn("3개 레시피가 유효합니다.", stdout)
+        self.assertIn("4개 레시피가 유효합니다.", stdout)
         self.assertEqual(stderr, "")
 
     def test_catalog_output_and_drift_check(self) -> None:
@@ -78,17 +78,17 @@ class CLITests(unittest.TestCase):
 
     def test_validate_parity_suite(self) -> None:
         status, stdout, stderr = self.invoke(
-            "suite-validate", "pi5-parity-ko-v1"
+            "suite-validate", "runtime-stability-ko-v1"
         )
         self.assertEqual(status, 0)
-        self.assertIn("pi5-parity-ko-v1", stdout)
+        self.assertIn("runtime-stability-ko-v1", stdout)
         self.assertIn("cases", stdout)
         self.assertEqual(stderr, "")
 
-    @mock.patch("kanana_garden.baseline.write_pi5_baseline_report")
-    @mock.patch("kanana_garden.baseline.run_pi5_baseline")
+    @mock.patch("kanana_garden.baseline.write_server_baseline_report")
+    @mock.patch("kanana_garden.baseline.run_server_baseline")
     @mock.patch("kanana_garden.cli.KananaClient")
-    def test_pi5_baseline_command_reports_summary(
+    def test_server_baseline_command_reports_summary(
         self,
         _client_class: mock.Mock,
         run_baseline: mock.Mock,
@@ -96,21 +96,23 @@ class CLITests(unittest.TestCase):
     ) -> None:
         run_baseline.return_value = {
             "passed": True,
-            "stop_reason": None,
+            "runtime": {
+                "session_id": "11111111-1111-4111-8111-111111111111",
+                "revision": "revision",
+                "dtype": "float32",
+            },
             "summary": {
                 "passed_sample_count": 9,
                 "sample_count": 9,
                 "median_latency_seconds": 1.25,
                 "p95_latency_seconds": 1.5,
                 "median_tokens_per_second": 4.2,
-                "max_temperature_c": 61.0,
-                "throttling_observed": False,
             },
         }
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "baseline.json"
             status, stdout, stderr = self.invoke(
-                "pi5-baseline",
+                "server-baseline",
                 "--output",
                 str(output),
             )
@@ -120,21 +122,20 @@ class CLITests(unittest.TestCase):
         self.assertIn("report-validate", stdout)
         write_report.assert_called_once()
 
-    def test_pi5_compare_command_reports_distinct_boots(self) -> None:
+    def test_server_compare_command_reports_distinct_sessions(self) -> None:
         comparison = {
             "passed": True,
             "checks": [
                 {
-                    "name": "distinct_boot_sessions",
+                    "name": "distinct_server_sessions",
                     "passed": True,
-                    "detail": "different boot ID hashes",
+                    "detail": "different server session IDs",
                 }
             ],
             "performance_delta": {
                 "median_latency_percent": 1.0,
                 "p95_latency_percent": 2.0,
                 "median_tokens_per_second_percent": -1.0,
-                "max_temperature_c": 0.5,
             },
         }
         with (
@@ -143,19 +144,19 @@ class CLITests(unittest.TestCase):
                 side_effect=[{}, {}],
             ),
             mock.patch(
-                "kanana_garden.reboot.compare_pi5_baselines",
+                "kanana_garden.stability.compare_server_baselines",
                 return_value=comparison,
             ),
         ):
             status, stdout, stderr = self.invoke(
-                "pi5-compare",
+                "server-compare",
                 "first.json",
                 "second.json",
             )
         self.assertEqual(status, 0)
         self.assertEqual(stderr, "")
-        self.assertIn("PASS Pi 5 재부팅 재현성", stdout)
-        self.assertIn("distinct_boot_sessions", stdout)
+        self.assertIn("PASS 5600G 서버 재시작 안정성", stdout)
+        self.assertIn("distinct_server_sessions", stdout)
 
     def test_uis7862s_doctor_prints_build_identity(self) -> None:
         report = {
@@ -235,7 +236,7 @@ class CLITests(unittest.TestCase):
     def test_parity_rejects_same_endpoint(self) -> None:
         status, _, stderr = self.invoke(
             "parity",
-            "pi5-parity-ko-v1",
+            "runtime-stability-ko-v1",
             "--reference-url",
             "http://same-host:8000/v1/",
             "--candidate-url",
@@ -243,6 +244,47 @@ class CLITests(unittest.TestCase):
         )
         self.assertEqual(status, 2)
         self.assertIn("서로 달라야", stderr)
+
+    @mock.patch("kanana_garden.cli.KananaClient")
+    def test_vehicle_command_returns_validated_action(
+        self, client_class: mock.Mock
+    ) -> None:
+        model = "kakaocorp/kanana-2-1.3b-instruct"
+        client_class.return_value.list_models.return_value = [model]
+        client_class.return_value.chat.return_value = ChatResult(
+            content=(
+                '{"action":"volume_up","slots":{},"confidence":"high",'
+                '"requires_confirmation":false}'
+            ),
+            model=model,
+            usage={},
+        )
+        status, stdout, stderr = self.invoke(
+            "vehicle-command", "--input", "볼륨 올려줘"
+        )
+        self.assertEqual(status, 0)
+        self.assertEqual(stderr, "")
+        self.assertEqual(json.loads(stdout)["action"], "volume_up")
+
+    @mock.patch("kanana_garden.cli.KananaClient")
+    def test_vehicle_command_rejects_executable_model_output(
+        self, client_class: mock.Mock
+    ) -> None:
+        model = "kakaocorp/kanana-2-1.3b-instruct"
+        client_class.return_value.list_models.return_value = [model]
+        client_class.return_value.chat.return_value = ChatResult(
+            content=(
+                '{"action":"app_open","slots":{"package":"evil.app"},'
+                '"confidence":"high","requires_confirmation":false}'
+            ),
+            model=model,
+            usage={},
+        )
+        status, _, stderr = self.invoke(
+            "vehicle-command", "--input", "앱 열어"
+        )
+        self.assertEqual(status, 2)
+        self.assertIn("app_open", stderr)
 
     def test_report_validate_rejects_unknown_kind(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

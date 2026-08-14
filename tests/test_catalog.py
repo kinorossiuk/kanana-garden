@@ -14,7 +14,7 @@ from kanana_garden.report_validation import load_assets
 class CatalogTests(unittest.TestCase):
     def test_no_evidence_is_explicitly_schema_only(self) -> None:
         catalog = build_catalog(iter_builtin_recipes(), [])
-        self.assertEqual(catalog["recipe_count"], 3)
+        self.assertEqual(catalog["recipe_count"], 4)
         self.assertTrue(
             all(
                 recipe["trust_level"] == "schema-only"
@@ -53,19 +53,22 @@ class CatalogTests(unittest.TestCase):
             )
         )
 
-    def test_two_boots_on_same_device_promote_reboot_level(self) -> None:
+    def test_two_server_sessions_promote_stability_level(self) -> None:
         recipes = list(iter_builtin_recipes())
         target = recipes[0]
 
-        def baseline(name: str, boot: str) -> tuple[Path, dict]:
+        def baseline(name: str, session_id: str) -> tuple[Path, dict]:
             return (
                 Path(name),
                 {
-                    "kind": "kanana-garden-pi5-baseline",
+                    "kind": "kanana-garden-server-baseline",
                     "passed": True,
-                    "device_before": {
-                        "device_id_sha256": f"sha256:{'d' * 64}",
-                        "boot_id_sha256": f"sha256:{boot * 64}",
+                    "profile": "ryzen-5-5600g",
+                    "requested_model": "model",
+                    "runtime": {
+                        "session_id": session_id,
+                        "revision": "revision",
+                        "dtype": "float32",
                     },
                     "recipes": [{"slug": target.slug}],
                 },
@@ -73,15 +76,18 @@ class CatalogTests(unittest.TestCase):
 
         catalog = build_catalog(
             recipes,
-            [baseline("boot-1.json", "a"), baseline("boot-2.json", "b")],
+            [
+                baseline("session-1.json", "session-1"),
+                baseline("session-2.json", "session-2"),
+            ],
         )
         by_slug = {recipe["slug"]: recipe for recipe in catalog["recipes"]}
         self.assertEqual(
             by_slug[target.slug]["trust_level"],
-            "pi5-reboot-reproduced",
+            "server-stability-reproduced",
         )
         self.assertEqual(
-            catalog["evidence_summary"]["reboot_reproduced_device_count"],
+            catalog["evidence_summary"]["stability_reproduced_runtime_count"],
             1,
         )
 

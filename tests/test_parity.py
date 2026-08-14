@@ -26,7 +26,7 @@ class FakeClient:
 
 class ParityTests(unittest.TestCase):
     def test_run_endpoint_applies_assertions(self) -> None:
-        suite = get_builtin_suite("pi5-parity-ko-v1")
+        suite = get_builtin_suite("runtime-stability-ko-v1")
         cases = suite.select_cases(["extract-contact", "extract-location"])
         run = run_endpoint(
             client=FakeClient(
@@ -46,7 +46,7 @@ class ParityTests(unittest.TestCase):
         self.assertIsNotNone(run["cases"][0]["tokens_per_second"])
 
     def test_relative_rate_only_counts_reference_passes(self) -> None:
-        suite = get_builtin_suite("pi5-parity-ko-v1")
+        suite = get_builtin_suite("runtime-stability-ko-v1")
         cases = suite.cases[:3]
         reference = {
             "pass_rate": 2 / 3,
@@ -77,7 +77,7 @@ class ParityTests(unittest.TestCase):
         self.assertEqual(report["checked_at"], "2026-07-31T00:00:00Z")
 
     def test_partial_run_cannot_claim_full_pass(self) -> None:
-        suite = get_builtin_suite("pi5-parity-ko-v1")
+        suite = get_builtin_suite("runtime-stability-ko-v1")
         cases = suite.cases[:1]
         endpoint = {
             "pass_rate": 1,

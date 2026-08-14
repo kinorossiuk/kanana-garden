@@ -79,6 +79,10 @@ class KananaClient:
 
     def list_models(self) -> list[str]:
         response = self._json_request("GET", "/models")
+        return self._model_ids(response)
+
+    @staticmethod
+    def _model_ids(response: dict[str, Any]) -> list[str]:
         data = response.get("data")
         if not isinstance(data, list):
             raise KananaAPIError("모델 목록 응답에 data 배열이 없습니다.")
@@ -90,6 +94,42 @@ class KananaClient:
         if not model_ids:
             raise KananaAPIError("서버가 노출한 모델 ID가 없습니다.")
         return model_ids
+
+    def runtime_info(self, model: str) -> dict[str, Any]:
+        """Read immutable runtime identity exposed by ``serve-local``."""
+
+        response = self._json_request("GET", "/models")
+        exposed_models = self._model_ids(response)
+        data = response["data"]
+        record = next(
+            (
+                item
+                for item in data
+                if isinstance(item, dict) and item.get("id") == model
+            ),
+            None,
+        )
+        if record is None:
+            return {"exposed_models": exposed_models, "runtime": {}}
+        runtime = record.get("kanana_garden")
+        if not isinstance(runtime, dict):
+            raise KananaAPIError(
+                "5600G 기준선에는 kanana-garden serve-local의 런타임 "
+                "메타데이터가 필요합니다."
+            )
+        clean_runtime: dict[str, str] = {}
+        for name in ("session_id", "revision", "dtype", "host_profile"):
+            value = runtime.get(name)
+            if isinstance(value, str) and value:
+                clean_runtime[name] = value
+        missing = sorted(
+            {"session_id", "revision", "dtype"} - clean_runtime.keys()
+        )
+        if missing:
+            raise KananaAPIError(
+                "서버 런타임 메타데이터가 불완전합니다: " + ", ".join(missing)
+            )
+        return {"exposed_models": exposed_models, "runtime": clean_runtime}
 
     def chat(
         self,

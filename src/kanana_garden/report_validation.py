@@ -3,47 +3,22 @@
 from __future__ import annotations
 
 import json
-import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from .baseline import (
     MAX_REPETITIONS,
-    MAX_TEMPERATURE_C,
     MIN_REPETITIONS,
-    SAFE_THROTTLED,
-    build_pi5_baseline_report,
+    SERVER_PROFILE,
+    build_server_baseline_report,
 )
 from .eval_suite import EvalSuite, evaluate_assertions, iter_builtin_suites
 from .parity import build_parity_report
 from .recipe import Recipe, RecipeError, iter_builtin_recipes
 from .verification import recipe_digest, sanitized_endpoint
-
-
-DEVICE_CHECK_NAMES = {
-    "raspberry_pi_5",
-    "arm64",
-    "memory_8gb_profile",
-    "free_disk",
-    "python",
-    "boot_id",
-    "device_id",
-    "native_bf16",
-    "temperature",
-    "throttling",
-}
-DEVICE_REQUIRED_NAMES = {
-    "raspberry_pi_5",
-    "arm64",
-    "memory_8gb_profile",
-    "free_disk",
-    "python",
-    "boot_id",
-    "device_id",
-}
-SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 def _load_json_object(path: Path) -> dict[str, Any]:
@@ -214,6 +189,21 @@ def validate_model_check(
             isinstance(model, str) and case.get("response_model") == model
         )
         passed = content_passed and model_matched
+        if recipe.slug == "vehicle-control-ko":
+            from .vehicle_control import parse_vehicle_action
+
+            try:
+                parsed_action = parse_vehicle_action(content)
+            except RecipeError:
+                parsed_action = None
+            contract_valid = parsed_action is not None
+            passed = passed and contract_valid
+            if case.get("action_contract_valid") is not contract_valid:
+                errors.append(
+                    f"{prefix}.action_contract_valid가 재계산 결과와 다릅니다."
+                )
+            if case.get("parsed_action") != parsed_action:
+                errors.append(f"{prefix}.parsed_action이 재계산 결과와 다릅니다.")
         recomputed_passes.append(passed)
         if case.get("model_matched") is not model_matched:
             errors.append(f"{prefix}.model_matched가 재계산 결과와 다릅니다.")
@@ -223,134 +213,6 @@ def validate_model_check(
     if report.get("passed") is not overall:
         errors.append("passed가 case 재계산 결과와 다릅니다.")
     return errors
-
-
-def validate_device_check(report: dict[str, Any]) -> list[str]:
-    errors = _base_checks(report)
-    if report.get("kind") != "kanana-garden-device-check":
-        errors.append("kind가 kanana-garden-device-check가 아닙니다.")
-        return errors
-    if report.get("profile") != "raspberry-pi-5-8gb":
-        errors.append("profile은 raspberry-pi-5-8gb여야 합니다.")
-    checks = report.get("checks")
-    if not isinstance(checks, list):
-        errors.append("checks가 배열이 아닙니다.")
-        return errors
-
-    by_name: dict[str, dict[str, Any]] = {}
-    for index, check in enumerate(checks):
-        prefix = f"checks[{index}]"
-        if not isinstance(check, dict):
-            errors.append(f"{prefix}가 객체가 아닙니다.")
-            continue
-        name = check.get("name")
-        if not isinstance(name, str) or name not in DEVICE_CHECK_NAMES:
-            errors.append(f"{prefix}.name이 지원하는 장비 점검 이름이 아닙니다.")
-            continue
-        if name in by_name:
-            errors.append(f"중복 장비 점검 이름: {name}")
-            continue
-        by_name[name] = check
-        if not isinstance(check.get("passed"), bool):
-            errors.append(f"{prefix}.passed가 bool이 아닙니다.")
-        if not isinstance(check.get("required"), bool):
-            errors.append(f"{prefix}.required가 bool이 아닙니다.")
-        if not isinstance(check.get("detail"), str):
-            errors.append(f"{prefix}.detail이 문자열이 아닙니다.")
-
-    missing = sorted(DEVICE_REQUIRED_NAMES - by_name.keys())
-    if missing:
-        errors.append(f"필수 장비 점검이 없습니다: {', '.join(missing)}")
-    for name in DEVICE_REQUIRED_NAMES:
-        check = by_name.get(name)
-        if check is not None and check.get("required") is not True:
-            errors.append(f"{name} 점검은 required=true여야 합니다.")
-    native_bf16 = by_name.get("native_bf16")
-    if native_bf16 is None:
-        errors.append("native_bf16 점검이 없습니다.")
-    elif native_bf16.get("required") is not False:
-        errors.append("native_bf16 점검은 required=false여야 합니다.")
-    boot_id = report.get("boot_id_sha256")
-    boot_id_valid = (
-        isinstance(boot_id, str) and SHA256_PATTERN.fullmatch(boot_id) is not None
-    )
-    if not boot_id_valid:
-        errors.append("boot_id_sha256이 올바른 SHA-256이 아닙니다.")
-    boot_check = by_name.get("boot_id")
-    if boot_check is not None:
-        if boot_check.get("passed") is not boot_id_valid:
-            errors.append("boot_id.passed가 boot_id_sha256과 다릅니다.")
-        expected_detail = boot_id if boot_id_valid else "unavailable"
-        if boot_check.get("detail") != expected_detail:
-            errors.append("boot_id.detail이 boot_id_sha256과 다릅니다.")
-    device_id = report.get("device_id_sha256")
-    device_id_valid = (
-        isinstance(device_id, str)
-        and SHA256_PATTERN.fullmatch(device_id) is not None
-    )
-    if not device_id_valid:
-        errors.append("device_id_sha256이 올바른 SHA-256이 아닙니다.")
-    device_check = by_name.get("device_id")
-    if device_check is not None:
-        if device_check.get("passed") is not device_id_valid:
-            errors.append("device_id.passed가 device_id_sha256과 다릅니다.")
-        expected_detail = device_id if device_id_valid else "unavailable"
-        if device_check.get("detail") != expected_detail:
-            errors.append("device_id.detail이 device_id_sha256과 다릅니다.")
-
-    valid_checks = [
-        check
-        for check in by_name.values()
-        if isinstance(check.get("passed"), bool)
-        and isinstance(check.get("required"), bool)
-    ]
-    ready = all(check["passed"] for check in valid_checks if check["required"])
-    if report.get("ready") is not ready:
-        errors.append("ready가 필수 장비 점검 재계산 결과와 다릅니다.")
-
-    temperature = report.get("temperature_c")
-    temperature_check = by_name.get("temperature")
-    if temperature is None:
-        if temperature_check is not None:
-            errors.append("temperature_c가 없는데 temperature 점검이 있습니다.")
-    elif not isinstance(temperature, (int, float)) or isinstance(temperature, bool):
-        errors.append("temperature_c는 숫자 또는 null이어야 합니다.")
-    elif temperature_check is None:
-        errors.append("temperature_c가 있는데 temperature 점검이 없습니다.")
-    elif temperature_check.get("passed") is not (float(temperature) < 80):
-        errors.append("temperature.passed가 80°C 기준 재계산 결과와 다릅니다.")
-
-    throttled = report.get("throttled")
-    throttling_check = by_name.get("throttling")
-    if throttled is None:
-        if throttling_check is not None:
-            errors.append("throttled가 없는데 throttling 점검이 있습니다.")
-    elif not isinstance(throttled, str):
-        errors.append("throttled는 문자열 또는 null이어야 합니다.")
-    elif throttling_check is None:
-        errors.append("throttled가 있는데 throttling 점검이 없습니다.")
-    elif throttling_check.get("passed") is not (throttled == "throttled=0x0"):
-        errors.append("throttling.passed가 재계산 결과와 다릅니다.")
-
-    recommendations = report.get("recommendations")
-    if not isinstance(recommendations, list) or not all(
-        isinstance(item, str) for item in recommendations
-    ):
-        errors.append("recommendations가 문자열 배열이 아닙니다.")
-    return errors
-
-
-def _validate_nested_device(
-    value: Any,
-    label: str,
-    errors: list[str],
-) -> dict[str, Any] | None:
-    if not isinstance(value, dict):
-        errors.append(f"{label}가 객체가 아닙니다.")
-        return None
-    for error in validate_device_check(value):
-        errors.append(f"{label}.{error}")
-    return value
 
 
 def _summary_value_matches(stored: Any, expected: Any) -> bool:
@@ -363,20 +225,29 @@ def _summary_value_matches(stored: Any, expected: Any) -> bool:
             and stored == expected
         )
     if isinstance(expected, float):
-        return _close(stored, float(expected))
+        return _close(stored, expected)
     return stored == expected
 
 
-def validate_pi5_baseline(
+def _valid_session_id(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        return str(UUID(value)) == value
+    except ValueError:
+        return False
+
+
+def validate_server_baseline(
     report: dict[str, Any],
     recipes: dict[str, Recipe],
 ) -> list[str]:
     errors = _base_checks(report, require_endpoint=True)
-    if report.get("kind") != "kanana-garden-pi5-baseline":
-        errors.append("kind가 kanana-garden-pi5-baseline이 아닙니다.")
+    if report.get("kind") != "kanana-garden-server-baseline":
+        errors.append("kind가 kanana-garden-server-baseline이 아닙니다.")
         return errors
-    if report.get("profile") != "raspberry-pi-5-8gb":
-        errors.append("profile은 raspberry-pi-5-8gb여야 합니다.")
+    if report.get("profile") != SERVER_PROFILE:
+        errors.append(f"profile은 {SERVER_PROFILE}여야 합니다.")
 
     model = report.get("requested_model")
     exposed = report.get("exposed_models")
@@ -391,6 +262,18 @@ def validate_pi5_baseline(
     if model and model not in exposed:
         errors.append("requested_model이 exposed_models에 없습니다.")
 
+    runtime = report.get("runtime")
+    if not isinstance(runtime, dict):
+        errors.append("runtime이 객체가 아닙니다.")
+        runtime = {}
+    if not _valid_session_id(runtime.get("session_id")):
+        errors.append("runtime.session_id가 올바른 UUID가 아닙니다.")
+    for name in ("revision", "dtype"):
+        if not isinstance(runtime.get(name), str) or not runtime[name]:
+            errors.append(f"runtime.{name}이 비어 있지 않은 문자열이 아닙니다.")
+    if runtime.get("host_profile") not in (None, SERVER_PROFILE):
+        errors.append(f"runtime.host_profile은 {SERVER_PROFILE}여야 합니다.")
+
     repetitions = report.get("repetitions")
     if (
         not isinstance(repetitions, int)
@@ -402,13 +285,6 @@ def validate_pi5_baseline(
             f"{MAX_REPETITIONS} 이하의 정수여야 합니다."
         )
         return errors
-
-    before = _validate_nested_device(
-        report.get("device_before"), "device_before", errors
-    )
-    after = _validate_nested_device(
-        report.get("device_after"), "device_after", errors
-    )
     recipe_values = report.get("recipes")
     if not isinstance(recipe_values, list):
         errors.append("recipes가 배열이 아닙니다.")
@@ -432,8 +308,6 @@ def validate_pi5_baseline(
         errors.append("recipes에 중복 slug가 있습니다.")
 
     rebuilt_runs: list[dict[str, Any]] = []
-    shortened = False
-    all_rebuilt_samples: list[dict[str, Any]] = []
     for recipe in required_recipes:
         raw = raw_by_slug.get(recipe.slug)
         if not isinstance(raw, dict):
@@ -446,7 +320,6 @@ def validate_pi5_baseline(
                     "samples": [],
                 }
             )
-            shortened = True
             continue
         prefix = f"recipes[{recipe.slug}]"
         if raw.get("sha256") != recipe_digest(recipe):
@@ -462,10 +335,8 @@ def validate_pi5_baseline(
             for repetition in range(1, repetitions + 1)
             for example_index, example in enumerate(recipe.examples, start=1)
         ]
-        if len(stored_samples) > len(expected_positions):
-            errors.append(f"{prefix}.samples가 예상 개수보다 많습니다.")
-        if shortened and stored_samples:
-            errors.append("안전 중단 뒤에 추가 sample이 기록되어 있습니다.")
+        if len(stored_samples) != len(expected_positions):
+            errors.append(f"{prefix}.samples 수가 예상 개수와 다릅니다.")
         rebuilt_samples: list[dict[str, Any]] = []
         for offset, (repetition, example_index, example) in enumerate(
             expected_positions
@@ -478,9 +349,7 @@ def validate_pi5_baseline(
                 errors.append(f"{sample_prefix}가 객체가 아닙니다.")
                 continue
             if stored.get("repetition") != repetition:
-                errors.append(
-                    f"{sample_prefix}.repetition이 {repetition}이 아닙니다."
-                )
+                errors.append(f"{sample_prefix}.repetition이 {repetition}이 아닙니다.")
             if stored.get("example_index") != example_index:
                 errors.append(
                     f"{sample_prefix}.example_index가 {example_index}이 아닙니다."
@@ -499,14 +368,29 @@ def validate_pi5_baseline(
                 (expected_contains is None or expected_contains in content)
                 and model_matched
             )
+            if recipe.slug == "vehicle-control-ko":
+                from .vehicle_control import parse_vehicle_action
+
+                try:
+                    parsed_action = parse_vehicle_action(content)
+                except RecipeError:
+                    parsed_action = None
+                contract_valid = parsed_action is not None
+                passed = passed and contract_valid
+                if stored.get("action_contract_valid") is not contract_valid:
+                    errors.append(
+                        f"{sample_prefix}.action_contract_valid가 재계산 결과와 다릅니다."
+                    )
+                if stored.get("parsed_action") != parsed_action:
+                    errors.append(
+                        f"{sample_prefix}.parsed_action이 재계산 결과와 다릅니다."
+                    )
             if stored.get("model_matched") is not model_matched:
                 errors.append(
                     f"{sample_prefix}.model_matched가 재계산 결과와 다릅니다."
                 )
             if stored.get("passed") is not passed:
-                errors.append(
-                    f"{sample_prefix}.passed가 재계산 결과와 다릅니다."
-                )
+                errors.append(f"{sample_prefix}.passed가 재계산 결과와 다릅니다.")
 
             usage = stored.get("usage")
             if not isinstance(usage, dict):
@@ -528,9 +412,7 @@ def validate_pi5_baseline(
                 or isinstance(latency, bool)
                 or latency <= 0
             ):
-                errors.append(
-                    f"{sample_prefix}.latency_seconds가 양수가 아닙니다."
-                )
+                errors.append(f"{sample_prefix}.latency_seconds가 양수가 아닙니다.")
                 latency = 0.000001
             expected_rate = (
                 round(completion_tokens / float(latency), 3)
@@ -540,31 +422,12 @@ def validate_pi5_baseline(
             if expected_rate is None:
                 if stored.get("tokens_per_second") is not None:
                     errors.append(
-                        f"{sample_prefix}.tokens_per_second가 "
-                        "usage 재계산 결과와 다릅니다."
+                        f"{sample_prefix}.tokens_per_second가 usage 재계산 결과와 다릅니다."
                     )
             elif not _close(stored.get("tokens_per_second"), expected_rate):
                 errors.append(
-                    f"{sample_prefix}.tokens_per_second가 "
-                    "usage 재계산 결과와 다릅니다."
+                    f"{sample_prefix}.tokens_per_second가 usage 재계산 결과와 다릅니다."
                 )
-
-            temperature = stored.get("temperature_c")
-            if temperature is not None and (
-                not isinstance(temperature, (int, float))
-                or isinstance(temperature, bool)
-            ):
-                errors.append(
-                    f"{sample_prefix}.temperature_c가 숫자 또는 null이 아닙니다."
-                )
-                temperature = None
-            throttled = stored.get("throttled")
-            if throttled is not None and not isinstance(throttled, str):
-                errors.append(
-                    f"{sample_prefix}.throttled가 문자열 또는 null이 아닙니다."
-                )
-                throttled = None
-
             rebuilt = dict(stored)
             rebuilt.update(
                 {
@@ -576,14 +439,9 @@ def validate_pi5_baseline(
                     "usage": usage,
                     "latency_seconds": latency,
                     "tokens_per_second": expected_rate,
-                    "temperature_c": temperature,
-                    "throttled": throttled,
                 }
             )
             rebuilt_samples.append(rebuilt)
-            all_rebuilt_samples.append(rebuilt)
-        if len(stored_samples) < len(expected_positions):
-            shortened = True
         rebuilt_runs.append(
             {
                 **raw,
@@ -594,38 +452,10 @@ def validate_pi5_baseline(
             }
         )
 
-    recomputed_stop: str | None = None
-    stop_offset: int | None = None
-    for offset, sample in enumerate(all_rebuilt_samples):
-        temperature = sample.get("temperature_c")
-        throttled = sample.get("throttled")
-        if (
-            isinstance(temperature, (int, float))
-            and not isinstance(temperature, bool)
-            and temperature >= MAX_TEMPERATURE_C
-        ):
-            recomputed_stop = "temperature_limit"
-            stop_offset = offset
-            break
-        if isinstance(throttled, str) and throttled != SAFE_THROTTLED:
-            recomputed_stop = "throttling_detected"
-            stop_offset = offset
-            break
-    if stop_offset is not None and stop_offset != len(all_rebuilt_samples) - 1:
-        errors.append("안전 한계 감지 뒤에 추가 sample이 기록되어 있습니다.")
-    if shortened and recomputed_stop is None:
-        errors.append("불완전한 baseline에 안전 중단 근거가 없습니다.")
-    if report.get("stop_reason") != recomputed_stop:
-        errors.append("stop_reason이 sample 재계산 결과와 다릅니다.")
-
     checked_at = _checked_at(report.get("checked_at"), [])
-    if before is None or after is None or checked_at is None:
+    if checked_at is None:
         return errors
-    if before.get("boot_id_sha256") != after.get("boot_id_sha256"):
-        errors.append("baseline 실행 중 boot ID가 달라졌습니다.")
-    if before.get("device_id_sha256") != after.get("device_id_sha256"):
-        errors.append("baseline 실행 중 device ID가 달라졌습니다.")
-    expected_report = build_pi5_baseline_report(
+    expected_report = build_server_baseline_report(
         endpoint=(
             report["endpoint"]
             if _endpoint_is_sanitized(report.get("endpoint"))
@@ -635,9 +465,7 @@ def validate_pi5_baseline(
         exposed_models=exposed,
         repetitions=repetitions,
         recipe_runs=rebuilt_runs,
-        device_before=before,
-        device_after=after,
-        stop_reason=recomputed_stop,
+        runtime=runtime,
         checked_at=checked_at,
     )
     if report.get("complete") is not expected_report["complete"]:
@@ -664,8 +492,7 @@ def _validate_endpoint_run(
     if not isinstance(run, dict):
         errors.append(f"{label}가 객체가 아닙니다.")
         return None
-    endpoint = run.get("endpoint")
-    if not _endpoint_is_sanitized(endpoint):
+    if not _endpoint_is_sanitized(run.get("endpoint")):
         errors.append(f"{label}.endpoint가 없거나 안전하게 정규화되지 않았습니다.")
     model = run.get("requested_model")
     exposed = run.get("exposed_models")
@@ -693,13 +520,10 @@ def _validate_endpoint_run(
             errors.append(f"{prefix}가 객체가 아닙니다.")
             continue
         case_id = stored.get("id")
-        if not isinstance(case_id, str):
-            errors.append(f"{prefix}.id가 문자열이 아닙니다.")
-            continue
-        case = suite_by_id.get(case_id)
-        if case is None:
+        if not isinstance(case_id, str) or case_id not in suite_by_id:
             errors.append(f"{prefix}.id가 suite에 없습니다: {case_id}")
             continue
+        case = suite_by_id[case_id]
         if stored.get("category") != case.category:
             errors.append(f"{prefix}.category가 suite와 다릅니다.")
         content = stored.get("content")
@@ -756,7 +580,9 @@ def validate_parity(
         errors.append("kind가 kanana-garden-runtime-parity가 아닙니다.")
         return errors
     suite_meta = report.get("suite")
-    if not isinstance(suite_meta, dict) or not isinstance(suite_meta.get("slug"), str):
+    if not isinstance(suite_meta, dict) or not isinstance(
+        suite_meta.get("slug"), str
+    ):
         errors.append("suite.slug가 없습니다.")
         return errors
     suite = suites.get(suite_meta["slug"])
@@ -769,7 +595,6 @@ def validate_parity(
         errors.append("thresholds가 현재 suite와 일치하지 않습니다.")
 
     reference_raw = report.get("reference")
-    candidate_raw = report.get("candidate")
     if not isinstance(reference_raw, dict) or not isinstance(
         reference_raw.get("cases"), list
     ):
@@ -780,14 +605,10 @@ def validate_parity(
     ]
     if len(selected_ids) != len(reference_raw["cases"]):
         errors.append("reference.cases에 객체가 아닌 항목이 있습니다.")
-    if not all(isinstance(case_id, str) for case_id in selected_ids):
-        errors.append("selected case ID는 문자열이어야 합니다.")
+    if not selected_ids or not all(isinstance(case_id, str) for case_id in selected_ids):
+        errors.append("선택된 case ID는 비어 있지 않은 문자열 목록이어야 합니다.")
         return errors
-    if not selected_ids:
-        errors.append("선택된 case가 하나 이상이어야 합니다.")
-        return errors
-    selected_count = suite_meta.get("selected_case_count")
-    if selected_count != len(selected_ids):
+    if suite_meta.get("selected_case_count") != len(selected_ids):
         errors.append("suite.selected_case_count가 실제 case 수와 다릅니다.")
     if suite_meta.get("total_case_count") != len(suite.cases):
         errors.append("suite.total_case_count가 현재 suite와 다릅니다.")
@@ -803,7 +624,7 @@ def validate_parity(
         reference_raw, suite, selected_ids, "reference", errors
     )
     candidate = _validate_endpoint_run(
-        candidate_raw, suite, selected_ids, "candidate", errors
+        report.get("candidate"), suite, selected_ids, "candidate", errors
     )
     checked_at = _checked_at(report.get("checked_at"), [])
     if reference is None or candidate is None or checked_at is None:
@@ -845,10 +666,8 @@ def validate_report(
         return validate_model_check(report, recipes)
     if kind == "kanana-garden-runtime-parity":
         return validate_parity(report, suites)
-    if kind == "kanana-garden-device-check":
-        return validate_device_check(report)
-    if kind == "kanana-garden-pi5-baseline":
-        return validate_pi5_baseline(report, recipes)
+    if kind == "kanana-garden-server-baseline":
+        return validate_server_baseline(report, recipes)
     return [f"지원하지 않는 report kind: {kind}"]
 
 

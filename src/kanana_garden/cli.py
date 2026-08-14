@@ -133,6 +133,18 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--max-tokens", type=int, help="max_tokens 덮어쓰기")
     run_parser.add_argument("--json", action="store_true", help="응답 메타데이터 포함")
 
+    vehicle_parser = subparsers.add_parser(
+        "vehicle-command",
+        help="한국어 차량 명령을 실행하지 않고 안전한 action JSON으로 해석",
+    )
+    _add_input_options(vehicle_parser)
+    _add_connection_options(vehicle_parser)
+    vehicle_parser.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        help="명령 해석 모델 ID (기본값: %(default)s)",
+    )
+
     check_parser = subparsers.add_parser("check", help="대표 예제를 실제 모델로 검사")
     check_parser.add_argument("recipe", help="내장 slug 또는 JSON 파일")
     _add_connection_options(check_parser)
@@ -171,20 +183,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="확인할 모델 ID (기본값: %(default)s)",
     )
 
-    device_parser = subparsers.add_parser(
-        "device-doctor",
-        help="Raspberry Pi 5 8GB 배포 준비 상태 확인",
-    )
-    device_parser.add_argument(
-        "--model-dir",
-        type=Path,
-        help="모델 캐시를 둘 경로의 디스크 공간 확인",
-    )
-    device_parser.add_argument("--json", action="store_true", help="JSON으로 출력")
-
     baseline_parser = subparsers.add_parser(
-        "pi5-baseline",
-        help="Pi 5에서 내장 레시피 품질·성능·열 기준선 수집",
+        "server-baseline",
+        help="5600G 서버의 반복 품질·성능 기준선 수집",
     )
     _add_connection_options(baseline_parser)
     baseline_parser.set_defaults(timeout=600.0)
@@ -200,11 +201,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="각 예제 반복 횟수, 3~20 (기본값: %(default)s)",
     )
     baseline_parser.add_argument(
-        "--model-dir",
-        type=Path,
-        help="device-doctor가 여유 공간을 확인할 모델 캐시 경로",
-    )
-    baseline_parser.add_argument(
         "--output",
         type=Path,
         required=True,
@@ -213,11 +209,11 @@ def build_parser() -> argparse.ArgumentParser:
     baseline_parser.add_argument("--json", action="store_true", help="JSON으로 출력")
 
     compare_parser = subparsers.add_parser(
-        "pi5-compare",
-        help="서로 다른 재부팅의 Pi 5 기준선 재현성 비교",
+        "server-compare",
+        help="서로 다른 5600G 서버 세션의 안정성 비교",
     )
     compare_parser.add_argument("first", type=Path, help="첫 baseline JSON")
-    compare_parser.add_argument("second", type=Path, help="재부팅 후 baseline JSON")
+    compare_parser.add_argument("second", type=Path, help="서버 재시작 후 baseline JSON")
     compare_parser.add_argument("--json", action="store_true", help="JSON으로 출력")
 
     uis_doctor_parser = subparsers.add_parser(
@@ -554,6 +550,27 @@ def _cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_vehicle_command(args: argparse.Namespace) -> int:
+    from .vehicle_control import parse_vehicle_action
+
+    recipe = get_builtin_recipe("vehicle-control-ko")
+    client = KananaClient(args.base_url, args.api_key, args.timeout)
+    exposed_models = client.list_models()
+    if args.model not in exposed_models:
+        raise RecipeError(
+            f"요청 모델 '{args.model}'이 서버 모델 목록에 없습니다: "
+            f"{', '.join(exposed_models)}"
+        )
+    result = client.chat(
+        model=args.model,
+        messages=recipe.render(_read_input(args)),
+        generation=recipe.generation,
+    )
+    action = parse_vehicle_action(result.content)
+    print(json.dumps(action, ensure_ascii=False, indent=2))
+    return 0
+
+
 def _cmd_check(args: argparse.Namespace) -> int:
     recipe = _resolve_recipe(args.recipe)
     model = args.model or recipe.model
@@ -577,16 +594,30 @@ def _cmd_check(args: argparse.Namespace) -> int:
         expected = example.get("expected_contains")
         content_passed = expected is None or expected in result.content
         model_passed = result.model == model
+        action_contract_valid: bool | None = None
+        parsed_action: dict[str, object] | None = None
+        if recipe.slug == "vehicle-control-ko":
+            from .vehicle_control import parse_vehicle_action
+
+            try:
+                parsed_action = parse_vehicle_action(result.content)
+            except RecipeError:
+                action_contract_valid = False
+            else:
+                action_contract_valid = True
         completion_tokens = result.usage.get("completion_tokens")
         tokens_per_second = (
             completion_tokens / latency_seconds
             if completion_tokens is not None and latency_seconds > 0
             else None
         )
-        cases.append(
-            {
+        case: dict[str, object] = {
                 "index": index,
-                "passed": content_passed and model_passed,
+                "passed": (
+                    content_passed
+                    and model_passed
+                    and action_contract_valid is not False
+                ),
                 "expected_contains": expected,
                 "response_model": result.model,
                 "model_matched": model_passed,
@@ -598,8 +629,11 @@ def _cmd_check(args: argparse.Namespace) -> int:
                     if tokens_per_second is not None
                     else None
                 ),
-            }
-        )
+        }
+        if action_contract_valid is not None:
+            case["action_contract_valid"] = action_contract_valid
+            case["parsed_action"] = parsed_action
+        cases.append(case)
 
     report = build_report(
         recipe=recipe,
@@ -739,47 +773,25 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_device_doctor(args: argparse.Namespace) -> int:
-    from .device import device_report
-
-    report = device_report(args.model_dir)
-    if args.json:
-        print(json.dumps(report, ensure_ascii=False, indent=2))
-    else:
-        print("Raspberry Pi 5 8GB 온디바이스 사전 점검\n")
-        for check in report["checks"]:
-            status = "PASS" if check["passed"] else "FAIL"
-            print(f"{status:4} {check['name']:20} {check['detail']}")
-        if report["temperature_c"] is not None:
-            print(f"INFO temperature          {report['temperature_c']:.1f} °C")
-        if report["throttled"] is not None:
-            print(f"INFO throttled            {report['throttled']}")
-        print("\n권장 사항:")
-        for recommendation in report["recommendations"]:
-            print(f"- {recommendation}")
-    return 0 if report["ready"] else 1
-
-
-def _cmd_pi5_baseline(args: argparse.Namespace) -> int:
-    from .baseline import run_pi5_baseline, write_pi5_baseline_report
+def _cmd_server_baseline(args: argparse.Namespace) -> int:
+    from .baseline import run_server_baseline, write_server_baseline_report
 
     client = KananaClient(args.base_url, args.api_key, args.timeout)
-    report = run_pi5_baseline(
+    report = run_server_baseline(
         client=client,
         endpoint=args.base_url,
         model=args.model,
         recipes=iter_builtin_recipes(),
         repetitions=args.repetitions,
-        model_dir=args.model_dir,
     )
-    write_pi5_baseline_report(report, args.output)
+    write_server_baseline_report(report, args.output)
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     else:
         summary = report["summary"]
         status = "PASS" if report["passed"] else "FAIL"
         print(
-            f"{status} Pi 5 기준선: "
+            f"{status} 5600G 서버 기준선: "
             f"{summary['passed_sample_count']}/{summary['sample_count']} samples"
         )
         print(
@@ -790,10 +802,9 @@ def _cmd_pi5_baseline(args: argparse.Namespace) -> int:
         print(
             f"생성 속도 중앙값: {summary['median_tokens_per_second']} tok/s"
         )
-        print(f"최고 온도: {summary['max_temperature_c']} °C")
-        print(f"스로틀링 감지: {summary['throttling_observed']}")
-        if report["stop_reason"] is not None:
-            print(f"안전 중단: {report['stop_reason']}", file=sys.stderr)
+        runtime = report["runtime"]
+        print(f"서버 세션: {runtime['session_id']}")
+        print(f"모델 revision/dtype: {runtime['revision']} / {runtime['dtype']}")
         print(f"리포트: {args.output}")
         print(
             f"재검산: kanana-garden report-validate {args.output}"
@@ -801,12 +812,12 @@ def _cmd_pi5_baseline(args: argparse.Namespace) -> int:
     return 0 if report["passed"] else 1
 
 
-def _cmd_pi5_compare(args: argparse.Namespace) -> int:
-    from .reboot import compare_pi5_baselines
+def _cmd_server_compare(args: argparse.Namespace) -> int:
+    from .stability import compare_server_baselines
     from .report_validation import load_assets, load_report
 
     recipes, _ = load_assets()
-    comparison = compare_pi5_baselines(
+    comparison = compare_server_baselines(
         load_report(args.first),
         load_report(args.second),
         recipes,
@@ -815,7 +826,7 @@ def _cmd_pi5_compare(args: argparse.Namespace) -> int:
         print(json.dumps(comparison, ensure_ascii=False, indent=2))
     else:
         status = "PASS" if comparison["passed"] else "FAIL"
-        print(f"{status} Pi 5 재부팅 재현성\n")
+        print(f"{status} 5600G 서버 재시작 안정성\n")
         for check in comparison["checks"]:
             check_status = "PASS" if check["passed"] else "FAIL"
             print(f"{check_status:4} {check['name']:26} {check['detail']}")
@@ -835,10 +846,6 @@ def _cmd_pi5_compare(args: argparse.Namespace) -> int:
         print(
             "생성 속도 중앙값: "
             f"{formatted(delta['median_tokens_per_second_percent'], '%')}"
-        )
-        print(
-            "최고 온도: "
-            f"{formatted(delta['max_temperature_c'], ' °C')}"
         )
     return 0 if comparison["passed"] else 1
 
@@ -1020,12 +1027,12 @@ COMMANDS = {
     "report-validate": _cmd_report_validate,
     "render": _cmd_render,
     "run": _cmd_run,
+    "vehicle-command": _cmd_vehicle_command,
     "check": _cmd_check,
     "parity": _cmd_parity,
     "doctor": _cmd_doctor,
-    "device-doctor": _cmd_device_doctor,
-    "pi5-baseline": _cmd_pi5_baseline,
-    "pi5-compare": _cmd_pi5_compare,
+    "server-baseline": _cmd_server_baseline,
+    "server-compare": _cmd_server_compare,
     "uis7862s-doctor": _cmd_uis7862s_doctor,
     "uis7862s-capture": _cmd_uis7862s_capture,
     "ota-download": _cmd_ota_download,

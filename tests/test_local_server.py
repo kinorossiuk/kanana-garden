@@ -12,6 +12,9 @@ MODEL = "kakaocorp/kanana-2-1.3b-instruct"
 
 class FakeBackend:
     model_id = MODEL
+    revision = "test-revision"
+    dtype = "float32"
+    host_profile = "ryzen-5-5600g"
 
     def __init__(self) -> None:
         self.last_messages = None
@@ -52,6 +55,10 @@ class LocalServerTests(unittest.TestCase):
     def test_openai_client_round_trip(self) -> None:
         client = KananaClient(self.base_url, api_key="test-key")
         self.assertEqual(client.list_models(), [MODEL])
+        runtime_info = client.runtime_info(MODEL)
+        self.assertEqual(runtime_info["runtime"]["revision"], "test-revision")
+        self.assertEqual(runtime_info["runtime"]["dtype"], "float32")
+        self.assertTrue(runtime_info["runtime"]["session_id"])
         result = client.chat(
             model=MODEL,
             messages=[{"role": "user", "content": "안녕"}],

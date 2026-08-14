@@ -1,4 +1,4 @@
-"""Compare two validated Pi 5 baselines from distinct boot sessions."""
+"""Compare validated 5600G baselines from distinct server sessions."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .recipe import Recipe, RecipeError
-from .report_validation import validate_pi5_baseline
 
 
 def _percent_change(first: Any, second: Any) -> float | None:
@@ -21,38 +20,27 @@ def _percent_change(first: Any, second: Any) -> float | None:
     return round((float(second) - float(first)) / float(first) * 100, 3)
 
 
-def _temperature_change(first: Any, second: Any) -> float | None:
-    if (
-        not isinstance(first, (int, float))
-        or isinstance(first, bool)
-        or not isinstance(second, (int, float))
-        or isinstance(second, bool)
-    ):
-        return None
-    return round(float(second) - float(first), 3)
-
-
-def compare_pi5_baselines(
+def compare_server_baselines(
     first: dict[str, Any],
     second: dict[str, Any],
     recipes: dict[str, Recipe],
     *,
     compared_at: datetime | None = None,
 ) -> dict[str, Any]:
+    from .report_validation import validate_server_baseline
+
     validation_errors: list[str] = []
     for label, baseline in (("first", first), ("second", second)):
         validation_errors.extend(
             f"{label}.{error}"
-            for error in validate_pi5_baseline(baseline, recipes)
+            for error in validate_server_baseline(baseline, recipes)
         )
     if validation_errors:
         detail = "\n".join(f"- {error}" for error in validation_errors)
         raise RecipeError(f"비교할 baseline이 유효하지 않습니다:\n{detail}")
 
-    first_boot = first["device_before"]["boot_id_sha256"]
-    second_boot = second["device_before"]["boot_id_sha256"]
-    first_device = first["device_before"]["device_id_sha256"]
-    second_device = second["device_before"]["device_id_sha256"]
+    first_runtime = first["runtime"]
+    second_runtime = second["runtime"]
     first_recipes = [
         (recipe["slug"], recipe["sha256"]) for recipe in first["recipes"]
     ]
@@ -71,34 +59,28 @@ def compare_pi5_baselines(
             "detail": second["checked_at"],
         },
         {
-            "name": "distinct_boot_sessions",
-            "passed": first_boot != second_boot,
+            "name": "distinct_server_sessions",
+            "passed": first_runtime["session_id"] != second_runtime["session_id"],
             "detail": (
-                "different boot ID hashes"
-                if first_boot != second_boot
-                else "same boot ID hash"
-            ),
-        },
-        {
-            "name": "same_device",
-            "passed": first_device == second_device,
-            "detail": (
-                "same device ID hash"
-                if first_device == second_device
-                else "different device ID hashes"
+                "different server session IDs"
+                if first_runtime["session_id"] != second_runtime["session_id"]
+                else "same server session ID"
             ),
         },
         {
             "name": "same_model",
             "passed": first["requested_model"] == second["requested_model"],
-            "detail": (
-                first["requested_model"]
-                if first["requested_model"] == second["requested_model"]
-                else (
-                    f"{first['requested_model']} != "
-                    f"{second['requested_model']}"
-                )
-            ),
+            "detail": first["requested_model"],
+        },
+        {
+            "name": "same_revision",
+            "passed": first_runtime["revision"] == second_runtime["revision"],
+            "detail": first_runtime["revision"],
+        },
+        {
+            "name": "same_dtype",
+            "passed": first_runtime["dtype"] == second_runtime["dtype"],
+            "detail": first_runtime["dtype"],
         },
         {
             "name": "same_recipe_revision",
@@ -111,7 +93,7 @@ def compare_pi5_baselines(
     timestamp = compared_at or datetime.now(timezone.utc)
     return {
         "schema_version": 1,
-        "comparison": "kanana-garden-pi5-reboot",
+        "comparison": "kanana-garden-server-stability",
         "powered_by": "Kanana",
         "compared_at": timestamp.astimezone(timezone.utc)
         .isoformat(timespec="seconds")
@@ -120,14 +102,12 @@ def compare_pi5_baselines(
         "checks": checks,
         "first": {
             "checked_at": first["checked_at"],
-            "boot_id_sha256": first_boot,
-            "device_id_sha256": first_device,
+            "session_id": first_runtime["session_id"],
             "endpoint": first["endpoint"],
         },
         "second": {
             "checked_at": second["checked_at"],
-            "boot_id_sha256": second_boot,
-            "device_id_sha256": second_device,
+            "session_id": second_runtime["session_id"],
             "endpoint": second["endpoint"],
         },
         "performance_delta": {
@@ -142,10 +122,6 @@ def compare_pi5_baselines(
             "median_tokens_per_second_percent": _percent_change(
                 first_summary["median_tokens_per_second"],
                 second_summary["median_tokens_per_second"],
-            ),
-            "max_temperature_c": _temperature_change(
-                first_summary["max_temperature_c"],
-                second_summary["max_temperature_c"],
             ),
         },
     }

@@ -1,4 +1,4 @@
-"""Collect a repeatable Raspberry Pi 5 quality and performance baseline."""
+"""Collect a repeatable quality and performance baseline from the 5600G server."""
 
 from __future__ import annotations
 
@@ -11,15 +11,13 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 
 from .client import KananaClient
-from .device import device_report, runtime_telemetry
 from .recipe import Recipe, RecipeError
 from .verification import recipe_digest, sanitized_endpoint
 
 
 MIN_REPETITIONS = 3
 MAX_REPETITIONS = 20
-MAX_TEMPERATURE_C = 80.0
-SAFE_THROTTLED = "throttled=0x0"
+SERVER_PROFILE = "ryzen-5-5600g"
 
 
 def _is_number(value: Any) -> bool:
@@ -38,45 +36,14 @@ def _rounded_p95(values: list[float]) -> float | None:
     return round(ordered[index], 6)
 
 
-def _telemetry_values(
-    device_before: dict[str, Any],
-    recipe_runs: list[dict[str, Any]],
-    device_after: dict[str, Any],
-) -> tuple[list[float], list[str], int]:
-    samples = [
-        sample
-        for recipe_run in recipe_runs
-        for sample in recipe_run.get("samples", [])
-        if isinstance(sample, dict)
-    ]
-    readings: list[dict[str, Any]] = [
-        device_before,
-        *samples,
-        device_after,
-    ]
-    temperatures = [
-        float(reading["temperature_c"])
-        for reading in readings
-        if _is_number(reading.get("temperature_c"))
-    ]
-    throttled = [
-        reading["throttled"]
-        for reading in readings
-        if isinstance(reading.get("throttled"), str)
-    ]
-    return temperatures, throttled, len(readings)
-
-
-def build_pi5_baseline_report(
+def build_server_baseline_report(
     *,
     endpoint: str,
     requested_model: str,
     exposed_models: list[str],
     repetitions: int,
     recipe_runs: list[dict[str, Any]],
-    device_before: dict[str, Any],
-    device_after: dict[str, Any],
-    stop_reason: str | None = None,
+    runtime: dict[str, Any],
     checked_at: datetime | None = None,
 ) -> dict[str, Any]:
     samples = [
@@ -102,55 +69,38 @@ def build_pi5_baseline_report(
         for sample in samples
         if _is_number(sample.get("tokens_per_second"))
     ]
-    temperatures, throttled_values, telemetry_reading_count = _telemetry_values(
-        device_before,
-        recipe_runs,
-        device_after,
-    )
-    telemetry_complete = (
-        len(temperatures) == telemetry_reading_count
-        and len(throttled_values) == telemetry_reading_count
-    )
-    performance_complete = len(token_rates) == len(samples)
-    throttling_observed = any(
-        value != SAFE_THROTTLED for value in throttled_values
-    )
-    max_temperature = max(temperatures) if temperatures else None
     complete = (
         repetitions >= MIN_REPETITIONS
         and expected_sample_count > 0
         and len(samples) == expected_sample_count
-        and stop_reason is None
+    )
+    performance_complete = len(token_rates) == len(samples)
+    runtime_complete = all(
+        isinstance(runtime.get(name), str) and bool(runtime[name])
+        for name in ("session_id", "revision", "dtype")
     )
     passed = (
         complete
-        and device_before.get("ready") is True
-        and device_after.get("ready") is True
         and passed_count == len(samples)
-        and telemetry_complete
         and performance_complete
-        and max_temperature is not None
-        and max_temperature < MAX_TEMPERATURE_C
-        and not throttling_observed
+        and runtime_complete
     )
     timestamp = checked_at or datetime.now(timezone.utc)
     return {
         "schema_version": 1,
-        "kind": "kanana-garden-pi5-baseline",
+        "kind": "kanana-garden-server-baseline",
         "powered_by": "Kanana",
         "checked_at": timestamp.astimezone(timezone.utc)
         .isoformat(timespec="seconds")
         .replace("+00:00", "Z"),
-        "profile": "raspberry-pi-5-8gb",
+        "profile": SERVER_PROFILE,
         "endpoint": sanitized_endpoint(endpoint),
         "requested_model": requested_model,
         "exposed_models": list(exposed_models),
+        "runtime": dict(runtime),
         "repetitions": repetitions,
         "complete": complete,
         "passed": passed,
-        "stop_reason": stop_reason,
-        "device_before": device_before,
-        "device_after": device_after,
         "recipes": recipe_runs,
         "summary": {
             "recipe_count": len(recipe_runs),
@@ -161,28 +111,19 @@ def build_pi5_baseline_report(
             "median_latency_seconds": _rounded_median(latencies),
             "p95_latency_seconds": _rounded_p95(latencies),
             "median_tokens_per_second": _rounded_median(token_rates),
-            "max_temperature_c": (
-                round(max_temperature, 3)
-                if max_temperature is not None
-                else None
-            ),
-            "telemetry_complete": telemetry_complete,
             "performance_complete": performance_complete,
-            "throttling_observed": throttling_observed,
+            "runtime_metadata_complete": runtime_complete,
         },
     }
 
 
-def run_pi5_baseline(
+def run_server_baseline(
     *,
     client: KananaClient,
     endpoint: str,
     model: str,
     recipes: Iterable[Recipe],
     repetitions: int = MIN_REPETITIONS,
-    model_dir: Path | None = None,
-    device_probe: Callable[[Path | None], dict[str, Any]] | None = None,
-    telemetry_probe: Callable[[], dict[str, Any]] | None = None,
     clock: Callable[[], float] | None = None,
     checked_at: datetime | None = None,
 ) -> dict[str, Any]:
@@ -203,23 +144,15 @@ def run_pi5_baseline(
             f"{', '.join(mismatched_recipes)}"
         )
 
-    probe_device = device_probe or device_report
-    probe_telemetry = telemetry_probe or runtime_telemetry
-    monotonic = clock or time.monotonic
-    before = probe_device(model_dir)
-    if before.get("ready") is not True:
-        raise RecipeError(
-            "Raspberry Pi 5 사전 점검이 통과하지 않았습니다. "
-            "먼저 device-doctor를 실행하세요."
-        )
-
-    exposed_models = client.list_models()
+    runtime_info = client.runtime_info(model)
+    exposed_models = runtime_info["exposed_models"]
+    runtime = runtime_info["runtime"]
     if model not in exposed_models:
         raise RecipeError(
             f"요청 모델 '{model}'이 서버 모델 목록에 없습니다: "
             f"{', '.join(exposed_models)}"
         )
-
+    monotonic = clock or time.monotonic
     recipe_runs: list[dict[str, Any]] = [
         {
             "slug": recipe.slug,
@@ -229,7 +162,6 @@ def run_pi5_baseline(
         }
         for recipe in selected_recipes
     ]
-    stop_reason: str | None = None
     for recipe, recipe_run in zip(selected_recipes, recipe_runs):
         for repetition in range(1, repetitions + 1):
             for example_index, example in enumerate(recipe.examples, start=1):
@@ -248,16 +180,10 @@ def run_pi5_baseline(
                     and completion_tokens >= 0
                     else None
                 )
-                telemetry = probe_telemetry()
-                temperature = telemetry.get("temperature_c")
-                throttled = telemetry.get("throttled")
                 expected = example.get("expected_contains")
-                content_passed = (
-                    expected is None or expected in response.content
-                )
+                content_passed = expected is None or expected in response.content
                 model_matched = response.model == model
-                recipe_run["samples"].append(
-                    {
+                sample: dict[str, Any] = {
                         "repetition": repetition,
                         "example_index": example_index,
                         "expected_contains": expected,
@@ -267,37 +193,32 @@ def run_pi5_baseline(
                         "usage": response.usage,
                         "latency_seconds": elapsed,
                         "tokens_per_second": tokens_per_second,
-                        "temperature_c": temperature,
-                        "throttled": throttled,
                         "passed": content_passed and model_matched,
-                    }
-                )
-                if _is_number(temperature) and temperature >= MAX_TEMPERATURE_C:
-                    stop_reason = "temperature_limit"
-                    break
-                if isinstance(throttled, str) and throttled != SAFE_THROTTLED:
-                    stop_reason = "throttling_detected"
-                    break
-            if stop_reason is not None:
-                break
-        if stop_reason is not None:
-            break
+                }
+                if recipe.slug == "vehicle-control-ko":
+                    from .vehicle_control import parse_vehicle_action
 
-    after = probe_device(model_dir)
-    return build_pi5_baseline_report(
+                    try:
+                        parsed_action = parse_vehicle_action(response.content)
+                    except RecipeError:
+                        parsed_action = None
+                    sample["action_contract_valid"] = parsed_action is not None
+                    sample["parsed_action"] = parsed_action
+                    sample["passed"] = sample["passed"] and parsed_action is not None
+                recipe_run["samples"].append(sample)
+
+    return build_server_baseline_report(
         endpoint=endpoint,
         requested_model=model,
         exposed_models=exposed_models,
         repetitions=repetitions,
         recipe_runs=recipe_runs,
-        device_before=before,
-        device_after=after,
-        stop_reason=stop_reason,
+        runtime=runtime,
         checked_at=checked_at,
     )
 
 
-def write_pi5_baseline_report(report: dict[str, Any], path: Path) -> None:
+def write_server_baseline_report(report: dict[str, Any], path: Path) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(

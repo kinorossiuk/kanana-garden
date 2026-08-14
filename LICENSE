@@ -1,22 +1,30 @@
-MIT License
+Kanana Garden Source-Available License
 
-Copyright (c) 2026 Kanana Garden contributors
+Copyright (c) 2026 kinorossiuk. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+The source code and accompanying materials in this repository (the
+"Software") are made publicly viewable for evaluation and transparency only.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Except for rights that cannot be restricted by applicable law or rights
+provided directly by the hosting platform's terms of service, no permission
+is granted to use, copy, modify, merge, publish, distribute, sublicense, sell,
+deploy, host, provide as a service, or create derivative works of the
+Software, in whole or in substantial part, without prior written permission
+from the copyright holder.
+
+This restriction applies to commercial and noncommercial use.
+
+Permission requests may be submitted through the repository's GitHub issue
+tracker. A separate written license may be offered at the copyright holder's
+sole discretion.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+This license applies only to the repository's original Software. Kanana model
+weights, model code, trademarks, and other third-party materials remain
+subject to their respective licenses and terms.

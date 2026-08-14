@@ -26,7 +26,7 @@ jobs:
       - name: Validate built-in recipes
         run: kanana-garden validate
       - name: Validate parity suite
-        run: kanana-garden suite-validate pi5-parity-ko-v1
+        run: kanana-garden suite-validate runtime-stability-ko-v1
       - name: Recompute stored evidence
         run: kanana-garden report-validate
       - name: Check generated catalog

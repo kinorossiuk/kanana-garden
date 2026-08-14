@@ -1,5 +1,11 @@
 # Kanana Garden 기여 가이드
 
+> 이 저장소는 source-available이며 오픈소스가 아닙니다. 버그 제보와 기능
+> 제안은 GitHub issue로 받을 수 있지만, 코드·recipe pull request는 별도
+> 기여자 권리 조건을 마련하기 전까지 받지 않습니다. 사전 합의 없이 제출된
+> 코드가 자동으로 프로젝트에 사용되거나 저장소의 사용 권한을 부여하지
+> 않습니다.
+
 Kanana Garden의 가장 작은 기여 단위는 “다른 사람이 그대로 재사용할 수 있는
 카나나 레시피”입니다. 아이디어만 늘리기보다 대표 입력으로 실제 결과를 확인한
 레시피를 받습니다.
@@ -86,8 +92,8 @@ Kanana Garden의 가장 작은 기여 단위는 “다른 사람이 그대로 �
 
 ## 실행 증빙 기여
 
-`reports/`에는 `device-doctor --json`, `check --output`,
-`pi5-baseline --output`, `parity --output`이 직접 만든 JSON만 둡니다.
+`reports/`에는 `check --output`, `server-baseline --output`,
+`parity --output`이 직접 만든 JSON만 둡니다.
 커밋 전 다음 명령이 통과해야 합니다.
 
 ```bash
@@ -97,25 +103,29 @@ PYTHONPATH=src python3 -m kanana_garden catalog \
 ```
 
 카탈로그를 수동으로 승격하지 않습니다. 현재 recipe와 유효한 실행 증빙만으로
-`스키마만 검증 → 실모델 스모크 통과 → Pi 5 기준선 통과 → Pi 5 재부팅
-재현` 순서가 자동 계산됩니다.
+`스키마만 검증 → 실모델 스모크 통과 → 5600G 서버 기준선 통과 → 5600G
+재시작 안정성 재현` 순서가 자동 계산됩니다.
 
-검증기는 현재 recipe·suite의 SHA-256, case assertion, 합격률, 임계값과 장비
-점검의 내부 정합성을 다시 계산합니다. 다만 전자서명이나 원격 증명은 아니므로
+검증기는 현재 recipe·suite의 SHA-256, case assertion, 합격률, 임계값과
+서버 session·runtime 메타데이터의 내부 정합성을 다시 계산합니다. 다만
+전자서명이나 원격 증명은 아니므로
 응답이 실제 장비·모델에서 생성됐다는 사실 자체를 암호학적으로 보증하지
 않습니다. PR 설명에는 장비, OS, 런타임, 모델 revision, dtype·양자화 방식과
 실행 명령을 적어 사람이 출처를 검토할 수 있게 합니다.
 
-Pi 장비 리포트에는 원본 `/etc/machine-id`와 boot ID를 저장하지 않습니다.
-대신 Garden 전용으로 해시한 안정 장치 ID와 boot ID SHA-256을 기록합니다.
-안정 장치 ID는 공개 리포트 사이에서 같은 장치를 연결할 수 있는 가명
-식별자입니다. 기본 machine-id 대신 별도의 비밀 식별자를 쓰려면 모든 기준선
-비교 한 쌍 안에서는 같은 `KANANA_DEVICE_ID` 환경 변수를 설정합니다. 서로
-다른 공개 제출 사이의 연결을 피하려면 비교 쌍마다 새로운 고엔트로피 값을
-사용합니다.
-
 리포트의 입력·출력에는 개인정보, API 키, 사내 호스트의 query token이나
 비공개 업무 데이터를 넣지 않습니다.
+
+## 차량 제어 기여
+
+`vehicle-control-ko`의 모델 출력은 `vehicle_control.py`의 action 계약을
+통과해야 합니다. 새 action을 추가할 때는 다음을 지킵니다.
+
+- 모델 출력에는 실행 코드 대신 의미와 제한된 slot만 둡니다.
+- package 이름, shell, URL, 화면 좌표를 모델이 정하지 못하게 합니다.
+- Android adapter는 action별 허용 API 또는 명시적 Intent만 호출합니다.
+- 낮은 confidence나 안전 영향이 있는 동작은 확인 없이 실행하지 않습니다.
+- 실제 차량 주행 중이 아니라 벤치 전원과 테스트 장비에서 검증합니다.
 
 ## 모델 및 상표
 
