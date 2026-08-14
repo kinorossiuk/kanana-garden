@@ -166,7 +166,7 @@ kanana-garden pi5-compare \
 ## 5600G 서버 + UIS7862S 테스트 랩
 
 운영 역할은 5600G 모델 서버, 현재 작업 폴더의 Codex 로그 분석·디버깅,
-Gitea 소스/이슈 관리, UIS7862S OTA 테스트 장비로 분리할 수 있습니다. 준비와
+GitHub Public 소스/이슈 관리, UIS7862S OTA 테스트 장비로 분리할 수 있습니다. 준비와
 일상적인 재현 루프는 [5600G · Codex · UIS7862S 테스트 랩](docs/LAB_5600G_UIS7862S.md)에
 정리되어 있습니다.
 
