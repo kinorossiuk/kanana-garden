@@ -15,6 +15,11 @@ keystore_file="$signing_dir/kanana-bridge-release.p12"
 password_file="$signing_dir/android-signing-password"
 base64_file="$signing_dir/android-signing-key.base64"
 
+write_base64() {
+  base64 -w 0 "$keystore_file" > "$base64_file"
+  printf '\n' >> "$base64_file"
+}
+
 mkdir -p "$signing_dir"
 chmod 700 "$signing_dir"
 
@@ -33,9 +38,7 @@ fi
 
 if [[ -e "$keystore_file" ]]; then
   openssl pkcs12 -in "$keystore_file" -passin "file:$password_file" -noout
-  if [[ ! -e "$base64_file" ]]; then
-    base64 -w 0 "$keystore_file" > "$base64_file"
-  fi
+  write_base64
   chmod 600 "$keystore_file" "$password_file" "$base64_file"
   echo "Existing Android OTA signing material is valid."
   echo "GitHub secret ANDROID_SIGNING_KEY_BASE64: $base64_file"
@@ -69,7 +72,7 @@ openssl pkcs12 -export \
   -passout "file:$output_password"
 openssl pkcs12 -in "$temporary_keystore" -passin "file:$password_file" -noout
 install -m 0600 "$temporary_keystore" "$keystore_file"
-base64 -w 0 "$keystore_file" > "$base64_file"
+write_base64
 
 chmod 600 "$keystore_file" "$password_file" "$base64_file"
 
