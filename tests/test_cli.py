@@ -28,7 +28,7 @@ class CLITests(unittest.TestCase):
             with self.assertRaises(SystemExit) as raised:
                 build_parser().parse_args(["--version"])
         self.assertEqual(raised.exception.code, 0)
-        self.assertEqual(stdout.getvalue().strip(), "kanana-garden 0.0.1a2")
+        self.assertEqual(stdout.getvalue().strip(), "kanana-garden 0.0.1a3")
 
     def test_list_json(self) -> None:
         status, stdout, stderr = self.invoke("list", "--json")
@@ -224,6 +224,20 @@ class CLITests(unittest.TestCase):
         self.assertEqual(stderr, "")
         self.assertIn("crash=1", stdout)
         capture.assert_called_once()
+
+    def test_uis7862s_report_pull_prints_repository_path(self) -> None:
+        report = {
+            "path": "reports/uis7862s/example-stage-zero-report.txt",
+            "sha256": "sha256:abc",
+        }
+        with mock.patch(
+            "kanana_garden.uis7862s.pull_stage_zero_report", return_value=report
+        ) as pull:
+            status, stdout, stderr = self.invoke("uis7862s-report-pull")
+        self.assertEqual(status, 0)
+        self.assertEqual(stderr, "")
+        self.assertIn(report["path"], stdout)
+        pull.assert_called_once()
 
     def test_ota_verify_returns_failure_for_tampered_artifact(self) -> None:
         report = {

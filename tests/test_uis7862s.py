@@ -10,6 +10,7 @@ from kanana_garden.uis7862s import (
     build_device_report,
     capture_diagnostics,
     parse_adb_devices,
+    pull_stage_zero_report,
     sanitize_getprop,
 )
 
@@ -147,6 +148,37 @@ class UIS7862STests(unittest.TestCase):
                 item for item in report["artifacts"] if item["path"] == "analysis.json"
             )
             self.assertRegex(artifact["sha256"], r"^sha256:[0-9a-f]{64}$")
+
+    def test_pull_stage_zero_report_uses_bounded_run_as_transport(self) -> None:
+        class ReportAdbClient(FakeAdbClient):
+            def exec_out(self, arguments, timeout=None):
+                self.report_command = tuple(arguments)
+                value = (
+                    "Kanana Garden UIS7862S 0단계 테스트\n"
+                    "앱 버전: 0.0.1-alpha.3\n"
+                    "- [PASS] 볼륨 올리기\n"
+                ).encode()
+                return self._result(tuple(arguments), value)
+
+        with tempfile.TemporaryDirectory() as directory:
+            client = ReportAdbClient()
+            output = Path(directory) / "stage-zero.txt"
+            result = pull_stage_zero_report(
+                output=output,
+                checked_at=CHECKED_AT,
+                client=client,
+            )
+            self.assertEqual(
+                client.report_command,
+                (
+                    "run-as",
+                    "dev.kinorossiuk.kananagarden.bridge",
+                    "cat",
+                    "files/stage-zero-report.txt",
+                ),
+            )
+            self.assertEqual(result["path"], str(output))
+            self.assertIn("[PASS]", output.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

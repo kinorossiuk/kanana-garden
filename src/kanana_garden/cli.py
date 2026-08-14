@@ -269,6 +269,45 @@ def build_parser() -> argparse.ArgumentParser:
     )
     uis_capture_parser.add_argument("--json", action="store_true", help="manifest 출력")
 
+    uis_pull_parser = subparsers.add_parser(
+        "uis7862s-report-pull",
+        help="USB/ADB 보조 경로로 브리지 테스트 보고서를 현재 저장소에 수집",
+    )
+    uis_pull_parser.add_argument(
+        "--serial",
+        default=os.getenv("ANDROID_SERIAL"),
+        help="ADB serial (기본값: ANDROID_SERIAL 또는 연결된 단일 장치)",
+    )
+    uis_pull_parser.add_argument("--adb-path", help="adb 실행 파일 경로")
+    uis_pull_parser.add_argument(
+        "--timeout", type=float, default=30.0, help="ADB 명령 제한 시간(초)"
+    )
+    uis_pull_parser.add_argument(
+        "--output",
+        type=Path,
+        help="보고서 저장 경로 (기본값: reports/uis7862s/<UTC 시각>-stage-zero-report.txt)",
+    )
+    uis_pull_parser.add_argument("--json", action="store_true", help="수집 결과를 JSON으로 출력")
+
+    report_receiver_parser = subparsers.add_parser(
+        "report-receiver",
+        help="LTE/HTTPS 제출을 현재 저장소에 저장하는 loopback 수신기 실행",
+    )
+    report_receiver_parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="loopback 수신 주소 (기본값: %(default)s)",
+    )
+    report_receiver_parser.add_argument(
+        "--port", type=int, default=8762, help="수신 포트 (기본값: %(default)s)"
+    )
+    report_receiver_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("reports/uis7862s/inbox"),
+        help="제출 보고서 저장 디렉터리 (기본값: %(default)s)",
+    )
+
     ota_download_parser = subparsers.add_parser(
         "ota-download",
         help="검증 해시가 고정된 UIS7862S OTA를 로컬 보관소에 다운로드",
@@ -922,6 +961,36 @@ def _cmd_uis7862s_capture(args: argparse.Namespace) -> int:
     return 0 if report["complete"] else 1
 
 
+def _cmd_uis7862s_report_pull(args: argparse.Namespace) -> int:
+    from .uis7862s import pull_stage_zero_report
+
+    report = pull_stage_zero_report(
+        output=args.output,
+        serial=args.serial,
+        adb_path=args.adb_path,
+        timeout=args.timeout,
+    )
+    if args.json:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+    else:
+        print(f"OK  0단계 테스트 보고서 수집: {report['path']}")
+        print(f"SHA-256: {report['sha256']}")
+    return 0
+
+
+def _cmd_report_receiver(args: argparse.Namespace) -> int:
+    from .report_receiver import serve_report_receiver, validate_receiver_token
+
+    token = validate_receiver_token(os.getenv("KANANA_REPORT_TOKEN"))
+    serve_report_receiver(
+        host=args.host,
+        port=args.port,
+        token=token,
+        output_dir=args.output_dir,
+    )
+    return 0
+
+
 def _cmd_ota_download(args: argparse.Namespace) -> int:
     from .ota import download_ota
 
@@ -1040,6 +1109,8 @@ COMMANDS = {
     "server-compare": _cmd_server_compare,
     "uis7862s-doctor": _cmd_uis7862s_doctor,
     "uis7862s-capture": _cmd_uis7862s_capture,
+    "uis7862s-report-pull": _cmd_uis7862s_report_pull,
+    "report-receiver": _cmd_report_receiver,
     "ota-download": _cmd_ota_download,
     "ota-verify": _cmd_ota_verify,
     "serve-local": _cmd_serve_local,

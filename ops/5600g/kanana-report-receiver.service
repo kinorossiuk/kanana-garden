@@ -1,0 +1,17 @@
+[Unit]
+Description=Kanana Garden UIS7862S LTE report receiver
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/kanana-garden/report-receiver.env
+ExecStart=/usr/bin/env bash -lc 'cd "$KANANA_REPO_DIR" && exec "$KANANA_REPO_DIR/.venv/bin/kanana-garden" report-receiver --port "$KANANA_REPORT_PORT" --output-dir "$KANANA_REPORT_OUTPUT_DIR"'
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0077
+
+[Install]
+WantedBy=default.target

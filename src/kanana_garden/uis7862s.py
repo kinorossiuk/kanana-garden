@@ -19,6 +19,10 @@ GIB = 1024**3
 MIN_MEMORY_BYTES = 3 * GIB
 MIN_DATA_FREE_BYTES = 2 * GIB
 PROFILE = "uis7862s-android-head-unit"
+BRIDGE_PACKAGE = "dev.kinorossiuk.kananagarden.bridge"
+BRIDGE_REPORT_PATH = "files/stage-zero-report.txt"
+BRIDGE_REPORT_HEADER = "Kanana Garden UIS7862S 0단계 테스트\n"
+MAX_BRIDGE_REPORT_BYTES = 64 * 1024
 PACKAGE_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+$")
 SOC_MARKERS = ("uis7862", "ums512")
 SENSITIVE_PROPERTY_MARKERS = (
@@ -395,6 +399,65 @@ def device_report(
         ),
         checked_at=checked_at,
     )
+
+
+def pull_stage_zero_report(
+    *,
+    output: Path | None = None,
+    serial: str | None = None,
+    adb_path: str | Path | None = None,
+    timeout: float = 30.0,
+    checked_at: datetime | None = None,
+    client: AdbClient | None = None,
+) -> dict[str, Any]:
+    """Pull the alpha bridge's private report into this repository over USB."""
+    timestamp, rendered_time = _utc_timestamp(checked_at)
+    report_path = output or (
+        Path("reports")
+        / "uis7862s"
+        / f"{timestamp.strftime('%Y%m%dT%H%M%SZ')}-stage-zero-report.txt"
+    )
+    if report_path.exists():
+        raise AdbError(f"보고서 파일이 이미 있습니다: {report_path}")
+
+    connected = client or AdbClient(serial=serial, adb_path=adb_path, timeout=timeout)
+    result = connected.exec_out(
+        ("run-as", BRIDGE_PACKAGE, "cat", BRIDGE_REPORT_PATH),
+        timeout=timeout,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.text.strip() or "unknown error"
+        detail = detail.replace(connected.serial, "[ADB_SERIAL_REDACTED]")
+        raise AdbError(
+            "브리지 보고서를 읽을 수 없습니다. alpha.3 이상 debug APK를 실행하고 "
+            f"체크 결과를 저장했는지 확인하세요: {detail[:500]}"
+        )
+    if not result.stdout:
+        raise AdbError("브리지 보고서가 비어 있습니다. 앱에서 체크 결과를 먼저 저장하세요.")
+    if len(result.stdout) > MAX_BRIDGE_REPORT_BYTES:
+        raise AdbError("브리지 보고서가 허용 크기 64 KiB를 초과했습니다.")
+    try:
+        text = result.stdout.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise AdbError("브리지 보고서가 올바른 UTF-8 텍스트가 아닙니다.") from exc
+    if not text.startswith(BRIDGE_REPORT_HEADER):
+        raise AdbError("브리지 보고서 헤더가 예상 형식과 다릅니다.")
+
+    try:
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(text, encoding="utf-8")
+    except OSError as exc:
+        raise AdbError(f"보고서를 저장할 수 없습니다: {report_path}: {exc}") from exc
+    return {
+        "schema_version": 1,
+        "kind": "kanana-garden-uis7862s-stage-zero-report-pull",
+        "pulled_at": rendered_time,
+        "path": str(report_path),
+        "bytes": len(result.stdout),
+        "sha256": f"sha256:{hashlib.sha256(result.stdout).hexdigest()}",
+        "source_package": BRIDGE_PACKAGE,
+        "transport": "adb-run-as",
+    }
 
 
 def sanitize_getprop(value: str) -> str:

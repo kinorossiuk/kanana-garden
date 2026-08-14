@@ -3,7 +3,7 @@ name: Release Android bridge
 on:
   push:
     tags:
-      - v0.0.1-alpha.2
+      - v0.0.1-alpha.3
 
 permissions:
   contents: write
@@ -49,19 +49,19 @@ jobs:
       - name: Verify and checksum APK
         run: |
           cp android/uis7862s-bridge/app/build/outputs/apk/debug/app-debug.apk \
-            kanana-garden-bridge-0.0.1-alpha.2-debug.apk
+            kanana-garden-bridge-0.0.1-alpha.3-debug.apk
           "${ANDROID_HOME}/build-tools/36.0.0/apksigner" verify --verbose --print-certs \
-            kanana-garden-bridge-0.0.1-alpha.2-debug.apk
-          sha256sum kanana-garden-bridge-0.0.1-alpha.2-debug.apk \
-            > kanana-garden-bridge-0.0.1-alpha.2-debug.apk.sha256
+            kanana-garden-bridge-0.0.1-alpha.3-debug.apk
+          sha256sum kanana-garden-bridge-0.0.1-alpha.3-debug.apk \
+            > kanana-garden-bridge-0.0.1-alpha.3-debug.apk.sha256
       - name: Publish GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${GITHUB_REF_NAME}" \
-            kanana-garden-bridge-0.0.1-alpha.2-debug.apk \
-            kanana-garden-bridge-0.0.1-alpha.2-debug.apk.sha256 \
+            kanana-garden-bridge-0.0.1-alpha.3-debug.apk \
+            kanana-garden-bridge-0.0.1-alpha.3-debug.apk.sha256 \
             --verify-tag \
             --prerelease \
-            --title "Kanana Garden v0.0.1-alpha.2" \
+            --title "Kanana Garden v0.0.1-alpha.3" \
             --notes-file android/uis7862s-bridge/RELEASE_NOTES.md

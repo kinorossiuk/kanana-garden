@@ -3,6 +3,34 @@
 이 프로젝트는 Git 태그에는 Semantic Versioning prerelease 표기를, Python
 패키지에는 동등한 PEP 440 표기를 사용합니다.
 
+## v0.0.1-alpha.3 — 2026-08-14
+
+UIS7862S에서 별도 설명서나 USB 없이 0단계 시험과 결과 제출을 진행하기 위한
+알파 릴리스입니다. Python 패키지 버전은 `0.0.1a3`입니다.
+
+### 포함
+
+- APK 화면에 6단계 시험 순서와 기기·Android·펌웨어 정보 표시
+- 볼륨·길안내·음악 항목별 상호 배타적 PASS/FAIL 체크박스
+- 테스터 메모와 API 실행 성공·실패 이력 자동 보존
+- 보고서 미리보기, 클립보드 복사와 사용자 주도 Android 공유
+- LTE에서 사용자 설정 HTTPS 수신기로 보고서를 직접 제출
+- HTTPS 강제, redirect 차단, 64 KiB 제한과 32자 이상 제출 토큰 검증
+- loopback 전용 5600G 보고서 수신기와 SHA-256 메타데이터 저장
+- DuckDNS·nginx HTTPS와 Cloudflare Tunnel 대체 배포 절차
+- USB/ADB 보고서 수집은 장애 시 보조 경로로 유지
+
+### 알려진 제한
+
+- DuckDNS 직접 연결에는 공유기 포트 forwarding, Tunnel 연결에는 관리 도메인이
+  필요하며 외부 HTTPS 경로 설정은 사용자가 완료해야 합니다.
+- alpha.3 APK에는 수신 주소나 제출 토큰이 포함되지 않으며 최초 1회 입력해야 합니다.
+- 제출 토큰은 Android 앱 sandbox의 비공개 preferences에 저장되며 장비를 양도하거나
+  분실하면 서버에서 즉시 교체해야 합니다.
+- 실제 UIS7862S LTE 망과 판매사 OTA에서의 제출 결과는 아직 수집하지 않았습니다.
+- APK는 CI의 일회성 debug signing을 사용하므로 alpha.2 위에 덮어쓰기 설치가
+  거부될 수 있습니다.
+
 ## v0.0.1-alpha.2 — 2026-08-14
 
 UIS7862S 0단계 장비 호환성 시험용 알파 릴리스입니다. Python 패키지 버전은
