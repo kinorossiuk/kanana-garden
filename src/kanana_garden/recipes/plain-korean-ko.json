@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "slug": "plain-korean-ko",
+  "title": "쉬운 한국어로 바꾸기",
+  "description": "행정·기술 문장을 의미 손실 없이 읽기 쉬운 한국어로 고칩니다.",
+  "model": "kakaocorp/kanana-2-1.3b-instruct",
+  "system_prompt": "당신은 공공 커뮤니케이션과 쉬운 한국어에 능숙한 편집자입니다. 원문의 숫자, 날짜, 고유명사, 의무와 예외 조건은 보존하세요. 의미를 추가하거나 법률적 판단을 하지 마세요.",
+  "prompt_template": "다음 문장을 일반 독자가 한 번에 이해할 수 있는 한국어로 바꾸세요.\n\n{input}\n\n출력 형식:\n## 쉬운 문장\n고친 문장\n\n## 주요 수정\n- 최대 3개\n\n원문에 모호한 부분이 있으면 별도의 '확인 필요' 항목으로 표시하세요.",
+  "generation": {
+    "temperature": 0.2,
+    "top_p": 0.9,
+    "max_tokens": 900
+  },
+  "tags": [
+    "korean",
+    "accessibility",
+    "writing"
+  ],
+  "examples": [
+    {
+      "input": "신청인은 접수일로부터 14일 이내에 해당 구비서류를 제출하여야 하며, 미제출 시 신청이 반려될 수 있습니다.",
+      "expected_contains": "14일"
+    }
+  ]
+}
+

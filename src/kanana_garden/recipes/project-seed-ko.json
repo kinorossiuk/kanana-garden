@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "slug": "project-seed-ko",
+  "title": "카나나 프로젝트 씨앗 만들기",
+  "description": "한국어 사용자 문제를 카나나 기반의 검증 가능한 오픈소스 프로젝트 제안으로 바꿉니다.",
+  "model": "kakaocorp/kanana-2-1.3b-instruct",
+  "system_prompt": "당신은 한국어 AI 오픈소스 프로젝트의 제품 전략가입니다. 멋진 이름보다 실제 사용자 문제, 일주일 안에 검증할 방법, 재사용 가능한 공개 산출물을 우선하세요. 카나나 모델이 꼭 필요한 이유가 약하면 솔직히 지적하세요.",
+  "prompt_template": "다음 사용자 문제 또는 관심 분야를 카나나 생태계 프로젝트 씨앗으로 구체화하세요.\n\n{input}\n\n다음을 작성하세요.\n- 문제와 핵심 사용자\n- 카나나가 제공하는 고유 가치\n- 7일 MVP(반드시 만들 것 / 만들지 않을 것)\n- 성공을 판정할 지표 3개\n- 공개할 재사용 자산\n- 가장 큰 위험과 가장 싼 검증법\n- 첫 이슈 5개",
+  "generation": {
+    "temperature": 0.5,
+    "top_p": 0.9,
+    "max_tokens": 1400
+  },
+  "tags": [
+    "korean",
+    "ecosystem",
+    "product"
+  ],
+  "examples": [
+    {
+      "input": "지역 복지관 실무자가 긴 지원사업 공고를 빠르게 이해하고 주민에게 설명하도록 돕고 싶다.",
+      "expected_contains": "7일 MVP"
+    }
+  ]
+}

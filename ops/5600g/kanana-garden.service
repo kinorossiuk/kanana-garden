@@ -1,0 +1,16 @@
+[Unit]
+Description=Kanana Garden local model server (Ryzen 5 5600G)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/kanana-garden/server.env
+ExecStart=/usr/bin/env bash -lc 'exec "$KANANA_REPO_DIR/ops/5600g/run.sh"'
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

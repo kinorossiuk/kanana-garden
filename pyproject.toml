@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kanana-garden"
+version = "0.1.0"
+description = "A dependency-free recipe registry and runner for the Kanana LLM ecosystem"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "Kanana Garden contributors" },
+]
+keywords = ["kanana", "llm", "korean", "recipes", "openai-compatible"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+dependencies = []
+
+[project.optional-dependencies]
+server = [
+  "accelerate>=1.0",
+  "safetensors>=0.4",
+  "torch>=2.6,<2.11",
+  "transformers>=4.57,<5",
+]
+pi = [
+  "accelerate>=1.0",
+  "safetensors>=0.4",
+  "torch>=2.6,<2.11",
+  "transformers>=4.57,<5",
+]
+
+[project.scripts]
+kanana-garden = "kanana_garden.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"kanana_garden.recipes" = ["*.json"]
+"kanana_garden.evals" = ["*.json"]
