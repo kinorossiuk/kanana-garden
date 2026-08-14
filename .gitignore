@@ -12,6 +12,7 @@ dist/
 *.aab
 *.jks
 *.keystore
+*.p12
 local.properties
 .gradle/
 reports/uis7862s/

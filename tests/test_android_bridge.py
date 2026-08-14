@@ -20,6 +20,9 @@ class AndroidBridgeTests(unittest.TestCase):
         self.assertIn("VERSION_NAME=0.2.0", version)
         self.assertIn('version = "0.2.0"', package)
         self.assertIn('tags:\n      - "v*"', release)
+        self.assertIn("secrets.ANDROID_SIGNING_KEY_BASE64", release)
+        self.assertIn("secrets.ANDROID_SIGNING_PASSWORD", release)
+        self.assertNotIn("secrets.ANDROID_KEY_PASSWORD", release)
 
     def test_bridge_declares_only_required_sensitive_permission(self) -> None:
         manifest = (BRIDGE / "app" / "src" / "main" / "AndroidManifest.xml").read_text(
