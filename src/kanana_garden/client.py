@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from typing import Any
 from urllib import error, request
 
+from . import __version__
+
 
 class KananaAPIError(RuntimeError):
     """A connection, protocol, or remote API failure."""
@@ -36,7 +38,7 @@ class KananaClient:
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "User-Agent": "kanana-garden/0.1.0",
+            "User-Agent": f"kanana-garden/{__version__}",
         }
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"

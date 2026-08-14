@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 from typing import Sequence
 
+from . import __version__
 from .client import KananaAPIError, KananaClient
 from .recipe import (
     Recipe,
@@ -59,7 +60,11 @@ def build_parser() -> argparse.ArgumentParser:
         prog="kanana-garden",
         description="Powered by Kanana — 카나나 활용 레시피를 검증하고 실행합니다.",
     )
-    parser.add_argument("--version", action="version", version="%(prog)s 0.1.0")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     list_parser = subparsers.add_parser("list", help="내장 레시피 목록")

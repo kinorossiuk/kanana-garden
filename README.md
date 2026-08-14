@@ -2,6 +2,8 @@
 
 **Powered by Kanana**
 
+현재 테스트 릴리스: **v0.0.1-alpha.1** (`0.0.1a1`)
+
 Kanana Garden은 한국어 LLM을 반복 시험하고, 같은 모델 설정이 서버 재시작
 후에도 같은 품질과 성능을 내는지 증빙한 뒤 온디바이스 배포로 넘기기 위한
 테스트·분석 저장소입니다.
@@ -13,6 +15,10 @@ Kanana Garden은 한국어 LLM을 반복 시험하고, 같은 모델 설정이 �
 > UIS7862S에서는 LLM 없이 고정 action을 실행할 Android 제어 브리지의
 > 호환성을 먼저 확인합니다. 완성 LLM의 설치·양자화·성능 시험만 안정화
 > 게이트 통과 후 진행합니다.
+
+이 버전은 첫 구조 검증용 알파입니다. 차량 action 계약과 5600G 테스트 도구는
+포함하지만, 실제 UIS7862S 제어 브리지 APK와 온디바이스 모델은 아직 포함하지
+않습니다.
 
 ## 시스템 구성
 
@@ -190,8 +196,16 @@ make validate
 PYTHONPATH=src python3 -m kanana_garden catalog --check docs/CATALOG.md
 ```
 
+특정 알파 버전을 다시 확인하려면 태그를 checkout합니다.
+
+```bash
+git checkout v0.0.1-alpha.1
+kanana-garden --version  # 0.0.1a1
+```
+
 새 recipe 기여 절차와 리포트 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md), 현재
 검증 수준은 [카탈로그](docs/CATALOG.md)를 참고하세요.
+릴리스별 변경사항과 알려진 제한은 [CHANGELOG.md](CHANGELOG.md)에 기록합니다.
 
 ## 이번 구조 변경
 

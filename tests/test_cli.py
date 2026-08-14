@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from kanana_garden.client import ChatResult
-from kanana_garden.cli import main
+from kanana_garden.cli import build_parser, main
 
 
 class CLITests(unittest.TestCase):
@@ -21,6 +21,14 @@ class CLITests(unittest.TestCase):
         ):
             status = main(list(args))
         return status, stdout.getvalue(), stderr.getvalue()
+
+    def test_version_uses_package_version(self) -> None:
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            with self.assertRaises(SystemExit) as raised:
+                build_parser().parse_args(["--version"])
+        self.assertEqual(raised.exception.code, 0)
+        self.assertEqual(stdout.getvalue().strip(), "kanana-garden 0.0.1a1")
 
     def test_list_json(self) -> None:
         status, stdout, stderr = self.invoke("list", "--json")

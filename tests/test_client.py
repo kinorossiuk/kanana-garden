@@ -9,8 +9,10 @@ from kanana_garden.client import KananaAPIError, KananaClient
 class FakeOpenAIHandler(BaseHTTPRequestHandler):
     last_authorization = None
     last_payload = None
+    last_user_agent = None
 
     def do_GET(self) -> None:
+        type(self).last_user_agent = self.headers.get("User-Agent")
         if self.path == "/v1/models":
             self._send(
                 200,
@@ -34,6 +36,7 @@ class FakeOpenAIHandler(BaseHTTPRequestHandler):
         length = int(self.headers["Content-Length"])
         type(self).last_payload = json.loads(self.rfile.read(length))
         type(self).last_authorization = self.headers.get("Authorization")
+        type(self).last_user_agent = self.headers.get("User-Agent")
         self._send(
             200,
             {
@@ -93,6 +96,7 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(result.content, "결과입니다.")
         self.assertEqual(result.usage, {"prompt_tokens": 11, "completion_tokens": 4})
         self.assertEqual(FakeOpenAIHandler.last_authorization, "Bearer secret")
+        self.assertEqual(FakeOpenAIHandler.last_user_agent, "kanana-garden/0.0.1a1")
         self.assertFalse(FakeOpenAIHandler.last_payload["stream"])
 
     def test_http_error_is_readable(self) -> None:
