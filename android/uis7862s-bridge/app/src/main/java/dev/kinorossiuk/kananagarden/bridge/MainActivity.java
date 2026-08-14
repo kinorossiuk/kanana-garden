@@ -23,6 +23,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.text.SimpleDateFormat;
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
@@ -48,6 +49,7 @@ public final class MainActivity extends Activity {
     private EditText receiverTokenInput;
     private TextView resultView;
     private TextView reportView;
+    private TextView updateStatusView;
     private ActionExecutor executor;
     private SharedPreferences preferences;
     private String executionHistory;
@@ -184,9 +186,23 @@ public final class MainActivity extends Activity {
         shareReport.setOnClickListener(view -> shareReport());
         content.addView(shareReport);
 
+        content.addView(sectionTitle("앱 OTA 업데이트"));
+        content.addView(text(
+                "GitHub 공식 릴리스에서 더 높은 versionCode를 확인합니다. APK의 SHA-256, "
+                        + "application ID와 현재 앱의 서명자를 모두 검증한 뒤 Android 설치 "
+                        + "화면을 엽니다. 자동 설치는 하지 않습니다.",
+                13
+        ));
+        Button updateButton = button("업데이트 확인");
+        updateButton.setOnClickListener(view -> checkForAppUpdate(updateButton));
+        content.addView(updateButton);
+        updateStatusView = text("현재 버전: " + BuildConfig.VERSION_NAME, 13);
+        updateStatusView.setTextIsSelectable(true);
+        content.addView(updateStatusView);
+
         content.addView(sectionTitle("LTE 제출 설정"));
         TextView submitGuide = text(
-                "5600G의 보고서 수신기를 DuckDNS+nginx 또는 Tunnel로 연결한 HTTPS "
+                "분석 PC의 보고서 수신기를 DuckDNS+nginx 또는 Tunnel로 연결한 HTTPS "
                         + "주소와 32자 이상의 제출 토큰을 입력합니다. 토큰은 APK에 "
                         + "미리 포함되지 않습니다.",
                 13
@@ -450,6 +466,92 @@ public final class MainActivity extends Activity {
         }, "kanana-report-upload").start();
     }
 
+    private void checkForAppUpdate(Button updateButton) {
+        updateButton.setEnabled(false);
+        showUpdateStatus("GitHub 릴리스에서 업데이트를 확인하는 중입니다...", false);
+        new Thread(() -> {
+            try {
+                UpdateManager.UpdateInfo update = UpdateManager.findAvailableUpdate();
+                runOnUiThread(() -> {
+                    updateButton.setEnabled(true);
+                    if (update == null) {
+                        showUpdateStatus("현재 설치본이 최신입니다: " + BuildConfig.VERSION_NAME, false);
+                        return;
+                    }
+                    showUpdateDownloadConfirmation(update, updateButton);
+                });
+            } catch (IOException | RuntimeException error) {
+                runOnUiThread(() -> {
+                    updateButton.setEnabled(true);
+                    showUpdateStatus("업데이트 확인 실패: " + error.getMessage(), true);
+                });
+            }
+        }, "kanana-update-check").start();
+    }
+
+    private void showUpdateDownloadConfirmation(
+            UpdateManager.UpdateInfo update,
+            Button updateButton
+    ) {
+        showUpdateStatus("새 버전 발견: " + update.versionName, false);
+        new AlertDialog.Builder(this)
+                .setTitle("앱 업데이트 " + update.versionName)
+                .setMessage("LTE 데이터로 APK를 다운로드하고 검증할까요? 설치는 Android 확인 화면에서 직접 승인합니다.")
+                .setNegativeButton("취소", null)
+                .setPositiveButton("다운로드", (dialog, which) -> downloadAppUpdate(update, updateButton))
+                .show();
+    }
+
+    private void downloadAppUpdate(UpdateManager.UpdateInfo update, Button updateButton) {
+        updateButton.setEnabled(false);
+        showUpdateStatus("APK 다운로드 및 SHA-256·서명 검증 중입니다...", false);
+        new Thread(() -> {
+            try {
+                File apk = UpdateManager.downloadAndVerify(this, update);
+                runOnUiThread(() -> {
+                    updateButton.setEnabled(true);
+                    offerVerifiedUpdateInstall(update, apk);
+                });
+            } catch (IOException | RuntimeException error) {
+                runOnUiThread(() -> {
+                    updateButton.setEnabled(true);
+                    showUpdateStatus("업데이트 검증 실패: " + error.getMessage(), true);
+                });
+            }
+        }, "kanana-update-download").start();
+    }
+
+    private void offerVerifiedUpdateInstall(UpdateManager.UpdateInfo update, File apk) {
+        if (!UpdateManager.canRequestInstall(this)) {
+            showUpdateStatus(
+                    "APK 검증 완료. 이 앱의 '알 수 없는 앱 설치'를 허용한 뒤 업데이트 확인을 다시 누르세요.",
+                    true
+            );
+            new AlertDialog.Builder(this)
+                    .setTitle("설치 권한 필요")
+                    .setMessage("UIS7862S 설정에서 이 앱의 APK 설치 요청을 허용해야 합니다.")
+                    .setNegativeButton("나중에", null)
+                    .setPositiveButton("설정 열기", (dialog, which) -> {
+                        try {
+                            UpdateManager.openUnknownSourcesSettings(this);
+                        } catch (RuntimeException error) {
+                            showUpdateStatus("설치 권한 화면을 열 수 없습니다: " + error.getMessage(), true);
+                        }
+                    })
+                    .show();
+            return;
+        }
+        try {
+            UpdateManager.launchInstaller(this, apk);
+            showUpdateStatus(
+                    update.versionName + " 설치 화면을 열었습니다. Android 화면에서 업데이트를 승인하세요.",
+                    false
+            );
+        } catch (RuntimeException error) {
+            showUpdateStatus("APK 설치 화면을 열 수 없습니다: " + error.getMessage(), true);
+        }
+    }
+
     private void confirmReset() {
         new AlertDialog.Builder(this)
                 .setTitle("테스트 기록 초기화")
@@ -543,6 +645,14 @@ public final class MainActivity extends Activity {
         }
         resultView.setText(message == null ? "알 수 없는 오류" : message);
         resultView.setTextColor(error ? Color.rgb(183, 28, 28) : Color.rgb(27, 94, 32));
+    }
+
+    private void showUpdateStatus(String message, boolean error) {
+        if (updateStatusView == null) {
+            return;
+        }
+        updateStatusView.setText(message == null ? "알 수 없는 업데이트 오류" : message);
+        updateStatusView.setTextColor(error ? Color.rgb(183, 28, 28) : Color.rgb(27, 94, 32));
     }
 
     private Button button(String label) {

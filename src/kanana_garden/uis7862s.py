@@ -429,7 +429,7 @@ def pull_stage_zero_report(
         detail = result.stderr.strip() or result.text.strip() or "unknown error"
         detail = detail.replace(connected.serial, "[ADB_SERIAL_REDACTED]")
         raise AdbError(
-            "브리지 보고서를 읽을 수 없습니다. alpha.3 이상 debug APK를 실행하고 "
+            "브리지 보고서를 읽을 수 없습니다. v0.2.0 이상 APK를 실행하고 "
             f"체크 결과를 저장했는지 확인하세요: {detail[:500]}"
         )
     if not result.stdout:

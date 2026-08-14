@@ -2,7 +2,7 @@
 
 **Powered by Kanana**
 
-현재 테스트 릴리스: **v0.0.1-alpha.3** (`0.0.1a3`)
+현재 테스트 릴리스: **v0.2.0** (`0.2.0`)
 
 Kanana Garden은 한국어 LLM을 반복 시험하고, 같은 모델 설정이 서버 재시작
 후에도 같은 품질과 성능을 내는지 증빙한 뒤 온디바이스 배포로 넘기기 위한
@@ -31,10 +31,15 @@ GitHub Public
                  ▲                                      └─ 볼륨·길안내·음악
                  │
 현재 작업 폴더 + Codex
-  └─ 로그 분석·디버깅·버전 관리
+  ├─ 로그 분석·디버깅·버전 관리
+  └─ UIS7862S LTE 테스트 보고서 수신
 
 안정화 게이트 통과 후에는 LLM 추론 위치만 5600G에서 UIS7862S 내부로 이동
 ```
+
+현재 랩에서 `192.168.0.50`은 5600G LLM 서버 전용이고, `192.168.0.40`은
+Codex가 실행되는 분석 호스트이자 LTE 보고서 수신 대상이다. 공유기 WAN 8443은
+`192.168.0.40:8443`으로 전달한다.
 
 다른 SBC 경로는 운영 범위에 포함하지 않습니다.
 
@@ -50,15 +55,21 @@ GitHub Public
 초기 브리지는 LLM을 포함하지 않습니다. ADB 또는 로컬 테스트 입력으로 고정된
 action JSON을 받아 실행하고, 기기·펌웨어별 실패를 먼저 분리합니다.
 
-`v0.0.1-alpha.3` GitHub Release에는 테스트용 debug APK와 SHA-256 파일을 함께
+`v0.2.0` GitHub Release에는 고정된 전용 키로 서명한 APK와 SHA-256 파일을 함께
 첨부합니다. 설치·권한 설정·시험 순서는
 [UIS7862S 0단계 제어 브리지](android/uis7862s-bridge/README.md)를 따릅니다.
 
-alpha.3 앱은 시험 순서, PASS/FAIL 체크박스, 기기·펌웨어 정보, API 실행 이력과
+v0.2.0 앱은 시험 순서, PASS/FAIL 체크박스, 기기·펌웨어 정보, API 실행 이력과
 메모를 하나의 보고서로 만듭니다. LTE 환경에서는 사용자가 설정한 HTTPS 수신기로
 버튼을 눌러 제출하며, 수신기는 현재 checkout의 `reports/uis7862s/inbox/`에
 보고서 원문과 SHA-256 메타데이터를 저장합니다. 수신 주소와 토큰은 APK에
 하드코딩하지 않습니다.
+
+앱의 `업데이트 확인` 버튼은 GitHub Release의 OTA 메타데이터를 읽고 더 높은
+`versionCode`의 APK만 내려받습니다. SHA-256, application ID와 현재 설치 앱의
+서명자를 모두 검증한 뒤 Android 설치 화면을 열며 사용자 승인 없이 설치하지
+않습니다. 전용키 보관과 GitHub secret 설정은
+[Android OTA 서명 운영](docs/ANDROID_OTA_SIGNING.md)을 따릅니다.
 
 ## 1단계: 5600G 명령 해석 모델 안정화
 
@@ -208,11 +219,11 @@ make validate
 PYTHONPATH=src python3 -m kanana_garden catalog --check docs/CATALOG.md
 ```
 
-특정 알파 버전을 다시 확인하려면 태그를 checkout합니다.
+특정 버전을 다시 확인하려면 태그를 checkout합니다.
 
 ```bash
-git checkout v0.0.1-alpha.3
-kanana-garden --version  # 0.0.1a3
+git checkout v0.2.0
+kanana-garden --version  # 0.2.0
 ```
 
 새 recipe 기여 절차와 리포트 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md), 현재
@@ -227,6 +238,7 @@ kanana-garden --version  # 0.0.1a3
 - 평가 스위트를 장비 비종속 `runtime-stability-ko-v1`으로 변경
 - UIS7862S 0단계 제어 브리지 APK와 자동 빌드·Release 첨부 추가
 - 앱 내부 PASS/FAIL 보고서와 LTE HTTPS 제출·로컬 수신기 추가
+- 고정 서명 APK와 GitHub Release 기반 사용자 승인 OTA 업데이트 추가
 - 완성 LLM 탑재는 0단계 장비 검증과 5600G 안정화 이후로 분리
 
 ## 라이선스

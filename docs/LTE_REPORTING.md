@@ -10,14 +10,23 @@ UIS7862S는 LTE 외부망에 있으므로 APK는 공개 HTTPS hostname으로 제
 ```text
 UIS7862S LTE
   └─ POST https://YOUR_SUBDOMAIN.duckdns.org:8443/v1/uis7862s/reports
-       └─ 공유기 WAN 8443 → 수신 PC 8443
+       └─ 공유기 WAN 8443 → 192.168.0.40:8443
             └─ nginx TLS → http://127.0.0.1:8762
                  └─ reports/uis7862s/inbox/
 ```
 
+현재 테스트 랩에서 두 호스트의 역할은 분리한다.
+
+| 주소 | 역할 | LTE 보고서 수신 |
+|---|---|---:|
+| `192.168.0.50` | Ryzen 5600G 로컬 LLM 서버 | 아니요 |
+| `192.168.0.40` | Codex 분석·디버깅 및 현재 저장소 checkout | 예 |
+
+따라서 공유기의 포트 forwarding 대상은 5600G가 아니라 `192.168.0.40`이다.
+
 필요 조건:
 
-- 이 저장소 checkout과 Python 환경이 있는 항상 켜진 수신 PC 또는 5600G
+- 이 저장소 checkout과 Python 환경이 있는 `192.168.0.40` 분석 호스트
 - 현재 공인 IP를 가리키는 DuckDNS subdomain
 - 공유기에서 수신 PC로 전달할 외부 HTTPS 포트
 - APK에 한 번 입력할 64자 무작위 제출 token
@@ -29,7 +38,7 @@ DuckDNS는 DNS 주소를 갱신할 뿐 NAT를 통과시키지 않는다. LTE에�
 ## 1. 로컬 수신기 준비
 
 ```bash
-./ops/5600g/install.sh
+./ops/report-host/install.sh
 openssl rand -hex 32
 ```
 
@@ -55,14 +64,14 @@ curl -fsS http://127.0.0.1:8762/health
 1. DuckDNS subdomain이 현재 공유기 공인 IPv4로 해석되는지 확인한다.
 2. 유효한 공개 TLS 인증서를 준비한다. 저장소에는 인증서와 DuckDNS token을
    넣지 않는다.
-3. `ops/5600g/nginx-report-receiver.conf.example`을 복사하고
+3. `ops/report-host/nginx-report-receiver.conf.example`을 복사하고
    `YOUR_SUBDOMAIN`을 실제 값으로 바꾼다.
 4. nginx 설정을 검사하고 reload한다.
-5. 공유기에서 WAN 8443을 수신 PC의 8443으로 전달한다.
+5. 공유기에서 WAN 8443을 `192.168.0.40:8443`으로 전달한다.
 6. LTE 휴대전화처럼 내부 Wi-Fi가 아닌 망에서 `/health`를 확인한다.
 
 ```bash
-sudo cp ops/5600g/nginx-report-receiver.conf.example \
+sudo cp ops/report-host/nginx-report-receiver.conf.example \
   /etc/nginx/sites-available/kanana-report-receiver
 sudoedit /etc/nginx/sites-available/kanana-report-receiver
 sudo ln -s /etc/nginx/sites-available/kanana-report-receiver \
@@ -105,7 +114,7 @@ SHA-256 메타데이터다. 이 디렉터리는 Git에서 제외된다.
 
 ## 장애 처리와 token 교체
 
-- 5600G/수신 PC, `kanana-report-receiver`, `cloudflared` 중 하나가 꺼져 있으면
+- 분석 호스트, `kanana-report-receiver`, `cloudflared` 중 하나가 꺼져 있으면
   제출은 실패한다. APK 내부 보고서는 유지되므로 복구 후 다시 누른다.
 - 401이면 APK와 서버 token이 다른 것이다.
 - 404이면 nginx hostname/location 또는 Tunnel route가 잘못된 것이다.

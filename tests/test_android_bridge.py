@@ -10,15 +10,16 @@ JAVA = BRIDGE / "app" / "src" / "main" / "java"
 
 class AndroidBridgeTests(unittest.TestCase):
     def test_release_and_android_versions_match(self) -> None:
-        build = (BRIDGE / "app" / "build.gradle").read_text(encoding="utf-8")
+        version = (BRIDGE / "version.properties").read_text(encoding="utf-8")
         package = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         release = (ROOT / ".github" / "workflows" / "release-android.yml").read_text(
             encoding="utf-8"
         )
 
-        self.assertIn('versionName "0.0.1-alpha.3"', build)
-        self.assertIn('version = "0.0.1a3"', package)
-        self.assertIn("v0.0.1-alpha.3", release)
+        self.assertIn("VERSION_CODE=200", version)
+        self.assertIn("VERSION_NAME=0.2.0", version)
+        self.assertIn('version = "0.2.0"', package)
+        self.assertIn('tags:\n      - "v*"', release)
 
     def test_bridge_declares_only_required_sensitive_permission(self) -> None:
         manifest = (BRIDGE / "app" / "src" / "main" / "AndroidManifest.xml").read_text(
@@ -30,6 +31,7 @@ class AndroidBridgeTests(unittest.TestCase):
             [
                 "android.permission.MODIFY_AUDIO_SETTINGS",
                 "android.permission.INTERNET",
+                "android.permission.REQUEST_INSTALL_PACKAGES",
             ],
         )
         self.assertNotIn("AccessibilityService", manifest)
@@ -68,6 +70,29 @@ class AndroidBridgeTests(unittest.TestCase):
         self.assertIn("HttpsURLConnection", uploader)
         self.assertIn('"https".equalsIgnoreCase', uploader)
         self.assertIn("setInstanceFollowRedirects(false)", uploader)
+
+    def test_ota_update_is_user_initiated_and_verifies_release(self) -> None:
+        activity = next(JAVA.rglob("MainActivity.java")).read_text(encoding="utf-8")
+        updater = next(JAVA.rglob("UpdateManager.java")).read_text(encoding="utf-8")
+        self.assertIn("checkForAppUpdate(updateButton)", activity)
+        self.assertIn("setPositiveButton(\"다운로드\"", activity)
+        self.assertNotIn("checkForAppUpdate(updateButton);", activity)
+        self.assertIn("candidateVersion <= BuildConfig.VERSION_CODE", updater)
+        self.assertIn("signatureSet(installed).equals(signatureSet(candidate))", updater)
+        self.assertIn("actualSha256.equals(update.sha256)", updater)
+        self.assertIn("Intent.ACTION_INSTALL_PACKAGE", updater)
+
+    def test_report_receiver_deployment_is_separate_from_5600g(self) -> None:
+        report_ops = ROOT / "ops" / "report-host"
+        model_ops = ROOT / "ops" / "5600g"
+
+        self.assertTrue((report_ops / "install.sh").is_file())
+        self.assertTrue((report_ops / "kanana-report-receiver.service").is_file())
+        self.assertTrue((report_ops / "report-receiver.env.example").is_file())
+        self.assertTrue((report_ops / "nginx-report-receiver.conf.example").is_file())
+        self.assertFalse((model_ops / "kanana-report-receiver.service").exists())
+        model_install = (model_ops / "install.sh").read_text(encoding="utf-8")
+        self.assertNotIn("report-receiver", model_install)
 
 
 if __name__ == "__main__":

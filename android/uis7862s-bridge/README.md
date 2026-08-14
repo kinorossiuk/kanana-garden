@@ -1,29 +1,45 @@
 # UIS7862S 0단계 제어 브리지
 
 LLM을 탑재하기 전에 UIS7862S Android 펌웨어가 차량 제어 API를 허용하는지
-확인하는 벤치 테스트용 디버그 APK입니다. 앱은 네트워크 권한, 임의 package 실행,
+확인하는 벤치 테스트용 APK입니다. 앱은 네트워크 권한, 임의 package 실행,
 shell 실행, 접근성 서비스와 화면 좌표 조작을 사용하지 않습니다.
 
 ## 설치
 
 GitHub Release에서 다음 두 파일을 같은 디렉터리에 받습니다.
 
-- `kanana-garden-bridge-0.0.1-alpha.3-debug.apk`
-- `kanana-garden-bridge-0.0.1-alpha.3-debug.apk.sha256`
+- `kanana-garden-bridge-0.2.0-release.apk`
+- `kanana-garden-bridge-0.2.0-release.apk.sha256`
 
 PC에서 해시를 확인하고 UIS7862S에 설치합니다.
 
 ```bash
-sha256sum -c kanana-garden-bridge-0.0.1-alpha.3-debug.apk.sha256
-adb install -r kanana-garden-bridge-0.0.1-alpha.3-debug.apk
+sha256sum -c kanana-garden-bridge-0.2.0-release.apk.sha256
+adb install kanana-garden-bridge-0.2.0-release.apk
 adb shell am start -n \
   dev.kinorossiuk.kananagarden.bridge/.MainActivity
 ```
 
-이 APK는 공개 배포용 release signing이 아닌 CI의 일회성 debug signing을
-사용합니다. 다른 CI 빌드나 다음 알파와 서명이 달라지면 `adb install -r`이
-거부될 수 있으며, 그때는 기존 테스트 앱을 삭제한 뒤 설치해야 합니다. 앱에는
-보존할 사용자 데이터가 없습니다. 주행 중에는 설치하거나 조작하지 마세요.
+v0.2.0은 OTA용 전용 키로 서명하는 첫 버전입니다. 기존 alpha.2 또는 CI debug
+APK가 있으면 서명자가 다르므로 기존 테스트 앱을 한 번 삭제한 뒤 설치해야 합니다.
+v0.2.0 이후에는 같은 키로 서명한 상위 버전을 앱 안에서 업데이트할 수 있습니다.
+주행 중에는 설치하거나 조작하지 마세요.
+
+## 앱에서 OTA 업데이트
+
+v0.2.0을 설치한 뒤에는 앱의 `앱 OTA 업데이트`에서 `업데이트 확인`을 누릅니다.
+새 버전이 있으면 다운로드 여부를 다시 묻고 다음 조건을 모두 확인합니다.
+
+- GitHub Release의 `kanana-garden-bridge-update.json` 형식
+- 현재 버전보다 높은 `versionCode`
+- 릴리스 메타데이터와 APK의 SHA-256 일치
+- 동일한 `dev.kinorossiuk.kananagarden.bridge` application ID
+- 현재 설치 앱과 다운로드 APK의 서명자 일치
+
+검증 후에도 앱이 직접 설치하지 않고 Android package installer를 엽니다. Android
+8 이상에서는 최초 한 번 이 앱의 `알 수 없는 앱 설치` 허용이 필요합니다. 펌웨어가
+해당 설정이나 설치 화면을 제거했다면 OTA 설치는 불가능하며 APK는 거부 상태로
+남습니다. 업데이트 확인과 다운로드는 모두 사용자 버튼으로만 시작합니다.
 
 ## 시험 순서
 
@@ -50,10 +66,13 @@ UIS7862S LTE
                  └─ reports/uis7862s/inbox/*.txt + *.json
 ```
 
-수신 서버에서 32-byte 무작위 토큰을 만들고 사용자 환경 파일에 설정합니다.
+`192.168.0.40` 분석 호스트에서 수신기를 설치하고 32-byte 무작위 토큰을
+사용자 환경 파일에 설정합니다. `192.168.0.50`의 5600G는 LLM 전용이며 LTE
+보고서를 받지 않습니다.
 명령의 출력은 비밀이므로 공개 저장소나 이슈에 올리지 마세요.
 
 ```bash
+./ops/report-host/install.sh
 openssl rand -hex 32
 
 # 출력값을 ~/.config/kanana-garden/report-receiver.env의
@@ -64,9 +83,9 @@ curl -fsS http://127.0.0.1:8762/health
 
 이미 DuckDNS와 공인 IP를 사용한다면 nginx가 TLS를 종료하고
 `127.0.0.1:8762`로 reverse proxy하도록 설정합니다. 예제는
-`ops/5600g/nginx-report-receiver.conf.example`, 전체 절차는
+`ops/report-host/nginx-report-receiver.conf.example`, 전체 절차는
 [LTE 보고서 수신](../../docs/LTE_REPORTING.md)에 있습니다. 공유기 WAN 8443을
-수신 PC의 8443으로 전달해야 합니다. 포트 forwarding이 불가능할 때만
+`192.168.0.40:8443`으로 전달해야 합니다. 포트 forwarding이 불가능할 때만
 Cloudflare Tunnel을 사용합니다.
 
 APK의 `LTE 제출 설정`에 다음 값을 넣습니다.
@@ -123,4 +142,5 @@ gradle -p android/uis7862s-bridge --no-daemon :app:assembleDebug
 ```
 
 저장소 CI도 같은 조합으로 APK를 빌드하고 `apksigner` 검증과 SHA-256 생성을
-수행합니다.
+수행합니다. 실제 Release는 전용 서명키가 등록된 태그 workflow만 만들며 설정은
+[Android OTA 서명 운영](../../docs/ANDROID_OTA_SIGNING.md)을 따릅니다.

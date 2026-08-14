@@ -10,6 +10,8 @@ dist/
 *.env.local
 *.apk
 *.aab
+*.jks
+*.keystore
 local.properties
 .gradle/
 reports/uis7862s/

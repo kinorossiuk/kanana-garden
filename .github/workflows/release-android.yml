@@ -3,7 +3,7 @@ name: Release Android bridge
 on:
   push:
     tags:
-      - v0.0.1-alpha.3
+      - "v*"
 
 permissions:
   contents: write
@@ -44,24 +44,76 @@ jobs:
         run: |
           "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
             "platforms;android-36" "build-tools;36.0.0"
-      - name: Build debug APK
-        run: gradle -p android/uis7862s-bridge --no-daemon :app:assembleDebug
-      - name: Verify and checksum APK
+      - name: Validate tag and read app version
+        shell: bash
         run: |
-          cp android/uis7862s-bridge/app/build/outputs/apk/debug/app-debug.apk \
-            kanana-garden-bridge-0.0.1-alpha.3-debug.apk
-          "${ANDROID_HOME}/build-tools/36.0.0/apksigner" verify --verbose --print-certs \
-            kanana-garden-bridge-0.0.1-alpha.3-debug.apk
-          sha256sum kanana-garden-bridge-0.0.1-alpha.3-debug.apk \
-            > kanana-garden-bridge-0.0.1-alpha.3-debug.apk.sha256
-      - name: Publish GitHub prerelease
+          set -euo pipefail
+          version_name="$(sed -n 's/^VERSION_NAME=//p' android/uis7862s-bridge/version.properties)"
+          version_code="$(sed -n 's/^VERSION_CODE=//p' android/uis7862s-bridge/version.properties)"
+          [[ "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+          [[ "$version_code" =~ ^[1-9][0-9]*$ ]]
+          [[ "${GITHUB_REF_NAME}" == "v${version_name}" ]]
+          echo "VERSION_NAME=$version_name" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$version_code" >> "$GITHUB_ENV"
+          echo "APK_ASSET=kanana-garden-bridge-${version_name}-release.apk" >> "$GITHUB_ENV"
+          echo "SHA_ASSET=kanana-garden-bridge-${version_name}-release.apk.sha256" >> "$GITHUB_ENV"
+      - name: Prepare private Android signing key
+        shell: bash
+        env:
+          ANDROID_SIGNING_KEY_BASE64: ${{ secrets.ANDROID_SIGNING_KEY_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          [[ -n "$ANDROID_SIGNING_KEY_BASE64" ]]
+          [[ -n "$ANDROID_STORE_PASSWORD" ]]
+          [[ -n "$ANDROID_KEY_ALIAS" ]]
+          [[ -n "$ANDROID_KEY_PASSWORD" ]]
+          printf '%s' "$ANDROID_SIGNING_KEY_BASE64" | base64 --decode \
+            > "${RUNNER_TEMP}/kanana-release.jks"
+          chmod 600 "${RUNNER_TEMP}/kanana-release.jks"
+          echo "KANANA_ANDROID_KEYSTORE=${RUNNER_TEMP}/kanana-release.jks" >> "$GITHUB_ENV"
+      - name: Build stable-signed release APK
+        env:
+          KANANA_ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KANANA_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KANANA_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: gradle -p android/uis7862s-bridge --no-daemon :app:assembleRelease
+      - name: Verify APK and create OTA metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp android/uis7862s-bridge/app/build/outputs/apk/release/app-release.apk \
+            "$APK_ASSET"
+          "${ANDROID_HOME}/build-tools/36.0.0/apksigner" verify \
+            --verbose --print-certs "$APK_ASSET"
+          sha256sum "$APK_ASSET" > "$SHA_ASSET"
+          apk_sha256="$(cut -d ' ' -f1 "$SHA_ASSET")"
+          jq -n \
+            --arg packageName "dev.kinorossiuk.kananagarden.bridge" \
+            --arg versionName "$VERSION_NAME" \
+            --argjson versionCode "$VERSION_CODE" \
+            --arg apkAsset "$APK_ASSET" \
+            --arg sha256 "$apk_sha256" \
+            '{schemaVersion:1, packageName:$packageName, versionName:$versionName,
+              versionCode:$versionCode, apkAsset:$apkAsset, sha256:$sha256}' \
+            > kanana-garden-bridge-update.json
+      - name: Publish GitHub release
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+          release_flags=()
+          if [[ "$VERSION_NAME" == *-* ]]; then
+            release_flags+=(--prerelease)
+          fi
           gh release create "${GITHUB_REF_NAME}" \
-            kanana-garden-bridge-0.0.1-alpha.3-debug.apk \
-            kanana-garden-bridge-0.0.1-alpha.3-debug.apk.sha256 \
+            "$APK_ASSET" \
+            "$SHA_ASSET" \
+            kanana-garden-bridge-update.json \
             --verify-tag \
-            --prerelease \
-            --title "Kanana Garden v0.0.1-alpha.3" \
+            "${release_flags[@]}" \
+            --title "Kanana Garden v${VERSION_NAME}" \
             --notes-file android/uis7862s-bridge/RELEASE_NOTES.md

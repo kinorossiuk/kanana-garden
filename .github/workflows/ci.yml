@@ -56,15 +56,15 @@ jobs:
       - name: Verify and checksum APK
         run: |
           cp android/uis7862s-bridge/app/build/outputs/apk/debug/app-debug.apk \
-            kanana-garden-bridge-0.0.1-alpha.3-debug.apk
+            kanana-garden-bridge-0.2.0-debug.apk
           "${ANDROID_HOME}/build-tools/36.0.0/apksigner" verify --verbose --print-certs \
-            kanana-garden-bridge-0.0.1-alpha.3-debug.apk
-          sha256sum kanana-garden-bridge-0.0.1-alpha.3-debug.apk \
-            > kanana-garden-bridge-0.0.1-alpha.3-debug.apk.sha256
+            kanana-garden-bridge-0.2.0-debug.apk
+          sha256sum kanana-garden-bridge-0.2.0-debug.apk \
+            > kanana-garden-bridge-0.2.0-debug.apk.sha256
       - uses: actions/upload-artifact@v6
         with:
-          name: uis7862s-bridge-alpha.3
+          name: uis7862s-bridge-0.2.0
           path: |
-            kanana-garden-bridge-0.0.1-alpha.3-debug.apk
-            kanana-garden-bridge-0.0.1-alpha.3-debug.apk.sha256
+            kanana-garden-bridge-0.2.0-debug.apk
+            kanana-garden-bridge-0.2.0-debug.apk.sha256
           if-no-files-found: error

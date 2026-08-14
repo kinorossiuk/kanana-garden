@@ -1,5 +1,5 @@
 [Unit]
-Description=Kanana Garden UIS7862S LTE report receiver
+Description=Kanana Garden UIS7862S LTE report receiver (analysis host)
 Wants=network-online.target
 After=network-online.target
 

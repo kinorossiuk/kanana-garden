@@ -1,4 +1,4 @@
-# Kanana Garden v0.0.1-alpha.3
+# Kanana Garden v0.2.0
 
 UIS7862S에서 설명서를 따로 열거나 USB를 연결하지 않고 0단계 시험과 LTE 결과
 제출을 진행하기 위한 Android 제어 브리지 APK입니다.
@@ -16,11 +16,16 @@ UIS7862S에서 설명서를 따로 열거나 USB를 연결하지 않고 0단계 
 - 결과 미리보기·복사·Android 공유
 - 사용자 설정 HTTPS 수신기로 LTE 보고서 제출
 - loopback 전용 수신기와 `reports/uis7862s/inbox/` SHA-256 증빙 저장
+- GitHub Release에서 사용자 버튼으로 확인·다운로드하는 APK OTA
+- APK SHA-256·application ID·versionCode·동일 앱 서명자 검증
+- 검증 후 Android 설치 화면에서 사용자가 직접 업데이트 승인
 
 알려진 제한:
 
-- CI의 일회성 debug signing을 사용하므로 다음 빌드에서 덮어쓰기 설치가 안 될 수
-  있습니다. 벤치 테스트 APK이며 주행 중 사용하면 안 됩니다.
+- 이전 alpha/debug APK와 서명이 다르므로 기존 앱을 한 번 삭제하고 v0.2.0을
+  설치해야 합니다. 이후에는 같은 전용 서명키를 사용하는 OTA 업데이트가 가능합니다.
+- UIS7862S가 일반 APK의 `알 수 없는 앱 설치` 설정과 package installer를 제공해야
+  앱 안에서 업데이트할 수 있습니다.
 - 수신 주소와 제출 token은 APK에 포함되지 않으며 사용자가 설정해야 합니다.
 - DuckDNS 직접 연결에는 공유기 forwarding과 공개 TLS 인증서가 필요하며,
   불가능하면 Tunnel 구성이 필요합니다.

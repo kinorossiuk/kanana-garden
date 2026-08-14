@@ -2,6 +2,12 @@ plugins {
     id "com.android.application"
 }
 
+def versionProperties = new Properties()
+file("../version.properties").withInputStream { stream ->
+    versionProperties.load(stream)
+}
+def signingKeystorePath = System.getenv("KANANA_ANDROID_KEYSTORE")
+
 android {
     namespace "dev.kinorossiuk.kananagarden.bridge"
     compileSdk 36
@@ -11,8 +17,28 @@ android {
         applicationId "dev.kinorossiuk.kananagarden.bridge"
         minSdk 23
         targetSdk 36
-        versionCode 3
-        versionName "0.0.1-alpha.3"
+        versionCode versionProperties.getProperty("VERSION_CODE").toInteger()
+        versionName versionProperties.getProperty("VERSION_NAME")
+    }
+
+    signingConfigs {
+        release {
+            if (signingKeystorePath) {
+                storeFile file(signingKeystorePath)
+                storePassword System.getenv("KANANA_ANDROID_STORE_PASSWORD")
+                keyAlias System.getenv("KANANA_ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("KANANA_ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (signingKeystorePath) {
+                signingConfig signingConfigs.release
+            }
+        }
     }
 
     buildFeatures {
