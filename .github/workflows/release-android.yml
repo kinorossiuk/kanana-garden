@@ -1,42 +1,35 @@
-name: CI
+name: Release Android bridge
 
 on:
   push:
-  pull_request:
+    tags:
+      - v0.0.1-alpha.2
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  test:
+  verify-python:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10", "3.12"]
-
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
           cache: pip
       - name: Install package
         run: python -m pip install .
-      - name: Validate built-in recipes
-        run: kanana-garden validate
-      - name: Validate parity suite
-        run: kanana-garden suite-validate runtime-stability-ko-v1
-      - name: Recompute stored evidence
-        run: kanana-garden report-validate
-      - name: Check generated catalog
-        run: kanana-garden catalog --check docs/CATALOG.md
-      - name: Run tests
-        run: python -m unittest discover -s tests -v
+      - name: Validate repository contracts
+        run: |
+          kanana-garden validate
+          kanana-garden suite-validate runtime-stability-ko-v1
+          kanana-garden report-validate
+          kanana-garden catalog --check docs/CATALOG.md
+          python -m unittest discover -s tests -v
 
-  android-bridge:
+  build-and-release:
+    needs: verify-python
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -58,10 +51,14 @@ jobs:
             kanana-garden-bridge-0.0.1-alpha.2-debug.apk
           sha256sum kanana-garden-bridge-0.0.1-alpha.2-debug.apk \
             > kanana-garden-bridge-0.0.1-alpha.2-debug.apk.sha256
-      - uses: actions/upload-artifact@v4
-        with:
-          name: uis7862s-bridge-alpha.2
-          path: |
-            kanana-garden-bridge-0.0.1-alpha.2-debug.apk
-            kanana-garden-bridge-0.0.1-alpha.2-debug.apk.sha256
-          if-no-files-found: error
+      - name: Publish GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            kanana-garden-bridge-0.0.1-alpha.2-debug.apk \
+            kanana-garden-bridge-0.0.1-alpha.2-debug.apk.sha256 \
+            --verify-tag \
+            --prerelease \
+            --title "Kanana Garden v0.0.1-alpha.2" \
+            --notes-file android/uis7862s-bridge/RELEASE_NOTES.md

@@ -2,7 +2,7 @@
 
 **Powered by Kanana**
 
-현재 테스트 릴리스: **v0.0.1-alpha.1** (`0.0.1a1`)
+현재 테스트 릴리스: **v0.0.1-alpha.2** (`0.0.1a2`)
 
 Kanana Garden은 한국어 LLM을 반복 시험하고, 같은 모델 설정이 서버 재시작
 후에도 같은 품질과 성능을 내는지 증빙한 뒤 온디바이스 배포로 넘기기 위한
@@ -16,9 +16,9 @@ Kanana Garden은 한국어 LLM을 반복 시험하고, 같은 모델 설정이 �
 > 호환성을 먼저 확인합니다. 완성 LLM의 설치·양자화·성능 시험만 안정화
 > 게이트 통과 후 진행합니다.
 
-이 버전은 첫 구조 검증용 알파입니다. 차량 action 계약과 5600G 테스트 도구는
-포함하지만, 실제 UIS7862S 제어 브리지 APK와 온디바이스 모델은 아직 포함하지
-않습니다.
+이 버전은 UIS7862S 0단계 장비 호환성 시험용 알파입니다. 차량 action 계약,
+5600G 테스트 도구와 설치 가능한 Android 제어 브리지 APK를 포함합니다. LLM은
+APK에 포함하지 않으며 온디바이스 모델 변환은 안정화 게이트 통과 후 진행합니다.
 
 ## 시스템 구성
 
@@ -49,6 +49,10 @@ GitHub Public
 
 초기 브리지는 LLM을 포함하지 않습니다. ADB 또는 로컬 테스트 입력으로 고정된
 action JSON을 받아 실행하고, 기기·펌웨어별 실패를 먼저 분리합니다.
+
+`v0.0.1-alpha.2` GitHub Release에는 테스트용 debug APK와 SHA-256 파일을 함께
+첨부합니다. 설치·권한 설정·시험 순서는
+[UIS7862S 0단계 제어 브리지](android/uis7862s-bridge/README.md)를 따릅니다.
 
 ## 1단계: 5600G 명령 해석 모델 안정화
 
@@ -199,8 +203,8 @@ PYTHONPATH=src python3 -m kanana_garden catalog --check docs/CATALOG.md
 특정 알파 버전을 다시 확인하려면 태그를 checkout합니다.
 
 ```bash
-git checkout v0.0.1-alpha.1
-kanana-garden --version  # 0.0.1a1
+git checkout v0.0.1-alpha.2
+kanana-garden --version  # 0.0.1a2
 ```
 
 새 recipe 기여 절차와 리포트 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md), 현재
@@ -213,7 +217,8 @@ kanana-garden --version  # 0.0.1a1
 - 5600G `server-baseline`과 서버 세션 기반 `server-compare` 추가
 - 서버 리포트에 session UUID, 모델 revision, dtype 저장
 - 평가 스위트를 장비 비종속 `runtime-stability-ko-v1`으로 변경
-- UIS7862S 제어 브리지는 초기 검증, 완성 LLM 탑재는 안정화 이후로 분리
+- UIS7862S 0단계 제어 브리지 APK와 자동 빌드·Release 첨부 추가
+- 완성 LLM 탑재는 0단계 장비 검증과 5600G 안정화 이후로 분리
 
 ## 라이선스
 

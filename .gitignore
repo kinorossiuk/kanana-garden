@@ -8,5 +8,9 @@ build/
 dist/
 .env
 *.env.local
+*.apk
+*.aab
+local.properties
+.gradle/
 reports/uis7862s/
 var/
