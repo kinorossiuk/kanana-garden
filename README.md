@@ -2,7 +2,7 @@
 
 **Powered by Kanana**
 
-현재 테스트 릴리스: **v0.2.0** (`0.2.0`)
+현재 테스트 릴리스: **v0.2.1** (`0.2.1`)
 
 Kanana Garden은 한국어 LLM을 반복 시험하고, 같은 모델 설정이 서버 재시작
 후에도 같은 품질과 성능을 내는지 증빙한 뒤 온디바이스 배포로 넘기기 위한
@@ -76,15 +76,24 @@ Git commit, 이슈 또는 빌드 로그에 붙여넣지 않습니다.
 초기 브리지는 LLM을 포함하지 않습니다. ADB 또는 로컬 테스트 입력으로 고정된
 action JSON을 받아 실행하고, 기기·펌웨어별 실패를 먼저 분리합니다.
 
-`v0.2.0` GitHub Release에는 고정된 전용 키로 서명한 APK와 SHA-256 파일을 함께
+`v0.2.1` GitHub Release에는 고정된 전용 키로 서명한 APK와 SHA-256 파일을 함께
 첨부합니다. 설치·권한 설정·시험 순서는
 [UIS7862S 0단계 제어 브리지](android/uis7862s-bridge/README.md)를 따릅니다.
 
-v0.2.0 앱은 시험 순서, PASS/FAIL 체크박스, 기기·펌웨어 정보, API 실행 이력과
+v0.2.1 앱은 시험 순서, PASS/FAIL 체크박스, 기기·펌웨어 정보, API 실행 이력과
 메모를 하나의 보고서로 만듭니다. LTE 환경에서는 사용자가 설정한 HTTPS 수신기로
 버튼을 눌러 제출하며, 수신기는 현재 checkout의 `reports/uis7862s/inbox/`에
 보고서 원문과 SHA-256 메타데이터를 저장합니다. 수신 주소와 토큰은 APK에
 하드코딩하지 않습니다.
+
+기기 진단에는 제조사·모델 외에 Android 보안 패치, hardware·board·ABI와 build
+fingerprint를 포함하지만 장비 serial은 수집하지 않습니다.
+
+배포 APK는 `debuggable`을 켜지 않은 release 빌드입니다. 대신 앱 프로세스의
+미처리 예외를 최대 12KB, 앱에서 처리한 API·OTA·LTE 내부 오류를 최대 16KB의
+앱 비공개 기록으로 보존합니다. 다음 실행 또는 오류 직후 보고서에 stack trace를
+자동 포함하며, Android의 원래 crash 처리를 막지 않고 토큰·인증 문자열 형태는
+저장 전에 마스킹합니다.
 
 앱의 `업데이트 확인` 버튼은 GitHub Release의 OTA 메타데이터를 읽고 더 높은
 `versionCode`의 APK만 내려받습니다. SHA-256, application ID와 현재 설치 앱의
@@ -243,8 +252,8 @@ PYTHONPATH=src python3 -m kanana_garden catalog --check docs/CATALOG.md
 특정 버전을 다시 확인하려면 태그를 checkout합니다.
 
 ```bash
-git checkout v0.2.0
-kanana-garden --version  # 0.2.0
+git checkout v0.2.1
+kanana-garden --version  # 0.2.1
 ```
 
 새 recipe 기여 절차와 리포트 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md), 현재
@@ -259,6 +268,7 @@ kanana-garden --version  # 0.2.0
 - 평가 스위트를 장비 비종속 `runtime-stability-ko-v1`으로 변경
 - UIS7862S 0단계 제어 브리지 APK와 자동 빌드·Release 첨부 추가
 - 앱 내부 PASS/FAIL 보고서와 LTE HTTPS 제출·로컬 수신기 추가
+- 앱 비공개 crash 기록과 다음 실행 보고서 자동 첨부 추가
 - 고정 서명 APK와 GitHub Release 기반 사용자 승인 OTA 업데이트 추가
 - 완성 LLM 탑재는 0단계 장비 검증과 5600G 안정화 이후로 분리
 

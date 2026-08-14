@@ -1,4 +1,4 @@
-# Kanana Garden v0.2.0
+# Kanana Garden v0.2.1
 
 UIS7862S에서 설명서를 따로 열거나 USB를 연결하지 않고 0단계 시험과 LTE 결과
 제출을 진행하기 위한 Android 제어 브리지 APK입니다.
@@ -11,8 +11,11 @@ UIS7862S에서 설명서를 따로 열거나 USB를 연결하지 않고 0단계 
 - 고정된 내비게이션·음악·설정 앱 alias
 - Python 명령 해석기와 동일한 제한형 action JSON 검증
 - 외부 Intent/ADB payload 자동 실행 방지 및 확인 UI
-- 앱 내부 6단계 시험 안내와 기기·펌웨어 정보
+- 앱 내부 6단계 시험 안내와 board·hardware·ABI·build fingerprint 진단
 - 항목별 PASS/FAIL 체크박스, 테스터 메모와 API 실행 이력
+- 앱 비공개 저장소에 미처리 예외·stack trace를 최대 12KB로 보존
+- 앱이 처리한 API·OTA·LTE 내부 오류의 stack trace를 최대 16KB로 누적
+- 다음 실행 보고서에 직전 crash 진단 자동 첨부 및 인증 문자열 마스킹
 - 결과 미리보기·복사·Android 공유
 - 사용자 설정 HTTPS 수신기로 LTE 보고서 제출
 - loopback 전용 수신기와 `reports/uis7862s/inbox/` SHA-256 증빙 저장
@@ -22,8 +25,10 @@ UIS7862S에서 설명서를 따로 열거나 USB를 연결하지 않고 0단계 
 
 알려진 제한:
 
-- 이전 alpha/debug APK와 서명이 다르므로 기존 앱을 한 번 삭제하고 v0.2.0을
-  설치해야 합니다. 이후에는 같은 전용 서명키를 사용하는 OTA 업데이트가 가능합니다.
+- 이전 alpha/debug APK와 서명이 다르므로 기존 앱을 한 번 삭제하고 v0.2.1을
+  설치해야 합니다. v0.2.0 이상은 같은 전용 서명키를 사용해 OTA 업데이트가 가능합니다.
+- release APK는 `debuggable`이 아니며 전체 system logcat은 수집하지 않습니다.
+  앱 프로세스의 미처리 예외만 다음 실행 보고서에 포함합니다.
 - UIS7862S가 일반 APK의 `알 수 없는 앱 설치` 설정과 package installer를 제공해야
   앱 안에서 업데이트할 수 있습니다.
 - 수신 주소와 제출 token은 APK에 포함되지 않으며 사용자가 설정해야 합니다.

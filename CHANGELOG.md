@@ -3,6 +3,29 @@
 이 프로젝트는 Git 태그에는 Semantic Versioning prerelease 표기를, Python
 패키지에는 동등한 PEP 440 표기를 사용합니다.
 
+## v0.2.1 — 2026-08-14
+
+UIS7862S에서 USB/ADB 없이 앱 crash를 회수하기 위한 진단 보강 릴리스입니다.
+Python 패키지 버전은 `0.2.1`입니다.
+
+### 포함
+
+- `Application` 생성 시 전역 미처리 예외 기록기 설치
+- UI 생성과 백그라운드 스레드 crash를 앱 비공개 파일에 최대 12KB로 보존
+- 앱에서 처리한 API·OTA·LTE 내부 오류도 stack trace와 함께 최대 16KB로 누적
+- 다음 실행 보고서의 `이전 앱 비정상 종료 진단`에 시각·스레드·stack trace 첨부
+- token·authorization·password 형태의 인증 문자열을 저장 전에 마스킹
+- 기록 실패와 관계없이 Android의 기존 crash 처리기로 원래 예외 전달
+- PASS/FAIL·메모·API 이력 초기화 시 보존된 crash 진단도 함께 삭제
+- board·hardware·ABI·보안 패치·build fingerprint 추가(serial은 미수집)
+
+### 알려진 제한
+
+- release APK는 `debuggable`이 아니며 system 전체 logcat을 수집하지 않습니다.
+- 프로세스가 재실행되지 않으면 저장된 crash 보고서를 LTE로 제출할 수 없습니다.
+- 네이티브 프로세스 강제 종료, 전원 차단과 OS 수준 ANR은 Java 미처리 예외 기록에
+  포함되지 않을 수 있습니다.
+
 ## v0.2.0 — 2026-08-14
 
 UIS7862S에서 별도 설명서나 USB 없이 0단계 시험과 결과 제출을 진행하기 위한

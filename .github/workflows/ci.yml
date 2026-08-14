@@ -51,20 +51,24 @@ jobs:
         run: |
           "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
             "platforms;android-36" "build-tools;36.0.0"
+      - name: Read app version
+        run: |
+          version_name="$(sed -n 's/^VERSION_NAME=//p' android/uis7862s-bridge/version.properties)"
+          echo "VERSION_NAME=$version_name" >> "$GITHUB_ENV"
       - name: Build debug APK
         run: gradle -p android/uis7862s-bridge --no-daemon :app:assembleDebug
       - name: Verify and checksum APK
         run: |
           cp android/uis7862s-bridge/app/build/outputs/apk/debug/app-debug.apk \
-            kanana-garden-bridge-0.2.0-debug.apk
+            "kanana-garden-bridge-${VERSION_NAME}-debug.apk"
           "${ANDROID_HOME}/build-tools/36.0.0/apksigner" verify --verbose --print-certs \
-            kanana-garden-bridge-0.2.0-debug.apk
-          sha256sum kanana-garden-bridge-0.2.0-debug.apk \
-            > kanana-garden-bridge-0.2.0-debug.apk.sha256
+            "kanana-garden-bridge-${VERSION_NAME}-debug.apk"
+          sha256sum "kanana-garden-bridge-${VERSION_NAME}-debug.apk" \
+            > "kanana-garden-bridge-${VERSION_NAME}-debug.apk.sha256"
       - uses: actions/upload-artifact@v6
         with:
-          name: uis7862s-bridge-0.2.0
+          name: uis7862s-bridge-${{ env.VERSION_NAME }}
           path: |
-            kanana-garden-bridge-0.2.0-debug.apk
-            kanana-garden-bridge-0.2.0-debug.apk.sha256
+            kanana-garden-bridge-${{ env.VERSION_NAME }}-debug.apk
+            kanana-garden-bridge-${{ env.VERSION_NAME }}-debug.apk.sha256
           if-no-files-found: error

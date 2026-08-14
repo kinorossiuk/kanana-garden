@@ -8,26 +8,26 @@ shell 실행, 접근성 서비스와 화면 좌표 조작을 사용하지 않습
 
 GitHub Release에서 다음 두 파일을 같은 디렉터리에 받습니다.
 
-- `kanana-garden-bridge-0.2.0-release.apk`
-- `kanana-garden-bridge-0.2.0-release.apk.sha256`
+- `kanana-garden-bridge-0.2.1-release.apk`
+- `kanana-garden-bridge-0.2.1-release.apk.sha256`
 
 PC에서 해시를 확인하고 UIS7862S에 설치합니다.
 
 ```bash
-sha256sum -c kanana-garden-bridge-0.2.0-release.apk.sha256
-adb install kanana-garden-bridge-0.2.0-release.apk
+sha256sum -c kanana-garden-bridge-0.2.1-release.apk.sha256
+adb install kanana-garden-bridge-0.2.1-release.apk
 adb shell am start -n \
   dev.kinorossiuk.kananagarden.bridge/.MainActivity
 ```
 
-v0.2.0은 OTA용 전용 키로 서명하는 첫 버전입니다. 기존 alpha.2 또는 CI debug
-APK가 있으면 서명자가 다르므로 기존 테스트 앱을 한 번 삭제한 뒤 설치해야 합니다.
-v0.2.0 이후에는 같은 키로 서명한 상위 버전을 앱 안에서 업데이트할 수 있습니다.
+v0.2.0은 OTA용 전용 키로 서명한 첫 버전이며 v0.2.1도 같은 키를 사용합니다.
+기존 alpha.2 또는 CI debug APK가 있으면 서명자가 다르므로 기존 테스트 앱을 한 번
+삭제한 뒤 설치해야 합니다. v0.2.0 이후 버전끼리는 앱 안에서 업데이트할 수 있습니다.
 주행 중에는 설치하거나 조작하지 마세요.
 
 ## 앱에서 OTA 업데이트
 
-v0.2.0을 설치한 뒤에는 앱의 `앱 OTA 업데이트`에서 `업데이트 확인`을 누릅니다.
+v0.2.0 이상을 설치한 뒤에는 앱의 `앱 OTA 업데이트`에서 `업데이트 확인`을 누릅니다.
 새 버전이 있으면 다운로드 여부를 다시 묻고 다음 조건을 모두 확인합니다.
 
 - GitHub Release의 `kanana-garden-bridge-update.json` 형식
@@ -48,10 +48,20 @@ v0.2.0을 설치한 뒤에는 앱의 `앱 OTA 업데이트`에서 `업데이트 
 뒤 각 항목의 PASS 또는 FAIL 하나만 체크합니다. 앱은 다음 정보를 보고서로
 계속 보존합니다.
 
-- 앱 버전, 기기 제조사·모델, Android SDK와 펌웨어 표시
+- 앱 버전, 기기 제조사·모델, Android SDK·보안 패치와 펌웨어 표시
+- hardware·board·ABI·build fingerprint(장비 serial은 수집하지 않음)
 - 사용자가 직접 확인한 PASS/FAIL
 - 테스터 메모
 - Android API 호출 시각과 성공·실패 메시지
+- 직전 프로세스의 미처리 예외 시각·스레드·stack trace(최대 12KB)
+- 앱에서 처리한 API·OTA·LTE 내부 오류의 stack trace(누적 최대 16KB)
+
+배포 APK는 보안상 Android debugger 연결을 허용하지 않는 release 빌드입니다.
+프로세스가 비정상 종료되면 앱 비공개 파일에 진단을 남기고 다음 실행 보고서의
+`이전 앱 비정상 종료 진단`에 자동 첨부합니다. 앱이 자체 처리한 동작·업데이트·
+전송 오류는 `처리된 내부 오류 상세`에 즉시 누적합니다. Android의 원래 crash
+처리는 그대로 이어지며 token·authorization·password 형태의 값은 기록 전에
+마스킹합니다. `체크와 기록 초기화`를 누르면 두 진단 기록도 삭제됩니다.
 
 `결과 보고서 복사`와 `다른 앱으로 결과 공유`는 보조 기능입니다. 현재 저장소로
 바로 제출하려면 아래 LTE 수신기 구성을 사용합니다.

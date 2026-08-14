@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -53,6 +54,8 @@ public final class MainActivity extends Activity {
     private ActionExecutor executor;
     private SharedPreferences preferences;
     private String executionHistory;
+    private String pendingCrash;
+    private String handledDiagnostics;
     private final Map<String, TestSelection> selections = new LinkedHashMap<>();
 
     @Override
@@ -61,6 +64,8 @@ public final class MainActivity extends Activity {
         executor = new ActionExecutor(this);
         preferences = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE);
         executionHistory = preferences.getString(HISTORY_KEY, "");
+        pendingCrash = CrashDiagnostics.readPending(this);
+        handledDiagnostics = CrashDiagnostics.readHandled(this);
         setContentView(buildContent());
         loadIntentPayload(getIntent());
     }
@@ -82,7 +87,7 @@ public final class MainActivity extends Activity {
         content.addView(title);
 
         TextView warning = text(
-                "0단계 벤치 테스트 전용 디버그 앱입니다. 주행 중 사용하지 마세요. "
+                "0단계 벤치 테스트 전용 진단 앱입니다. 주행 중 사용하지 마세요. "
                         + "ADB로 받은 JSON도 자동 실행하지 않으며 아래 실행 버튼을 직접 눌러야 합니다.",
                 15
         );
@@ -131,7 +136,8 @@ public final class MainActivity extends Activity {
             try {
                 showResult(executor.openNotificationAccessSettings(), false);
             } catch (RuntimeException error) {
-                showResult(error.getMessage(), true);
+                recordDetailedError("notification_settings", error);
+                showResult(CrashDiagnostics.summary(error), true);
             }
         });
         content.addView(notificationAccess);
@@ -294,6 +300,7 @@ public final class MainActivity extends Activity {
             recordExecution(command.action, true, result);
             Log.i(LOG_TAG, "action=" + command.action + " result=success");
         } catch (RuntimeException error) {
+            recordDetailedError("action_" + command.action, error);
             showResult("실행 실패: " + error.getMessage(), true);
             recordExecution(command.action, false, error.getMessage());
             Log.w(LOG_TAG, "action=" + command.action + " result=failure", error);
@@ -407,6 +414,7 @@ public final class MainActivity extends Activity {
             startActivity(Intent.createChooser(send, "테스트 결과 제출 / 공유"));
             showResult("공유할 앱을 직접 선택하세요. 자동 전송되지는 않습니다.", false);
         } catch (RuntimeException error) {
+            recordDetailedError("report_share", error);
             showResult("결과를 공유할 앱을 열 수 없습니다: " + error.getMessage(), true);
         }
     }
@@ -459,6 +467,7 @@ public final class MainActivity extends Activity {
                 });
             } catch (RuntimeException | IOException error) {
                 runOnUiThread(() -> {
+                    recordDetailedError("report_submit", error);
                     submitButton.setEnabled(true);
                     showResult("LTE 제출 실패: " + error.getMessage(), true);
                 });
@@ -482,6 +491,7 @@ public final class MainActivity extends Activity {
                 });
             } catch (IOException | RuntimeException error) {
                 runOnUiThread(() -> {
+                    recordDetailedError("update_check", error);
                     updateButton.setEnabled(true);
                     showUpdateStatus("업데이트 확인 실패: " + error.getMessage(), true);
                 });
@@ -514,6 +524,7 @@ public final class MainActivity extends Activity {
                 });
             } catch (IOException | RuntimeException error) {
                 runOnUiThread(() -> {
+                    recordDetailedError("update_download", error);
                     updateButton.setEnabled(true);
                     showUpdateStatus("업데이트 검증 실패: " + error.getMessage(), true);
                 });
@@ -535,6 +546,7 @@ public final class MainActivity extends Activity {
                         try {
                             UpdateManager.openUnknownSourcesSettings(this);
                         } catch (RuntimeException error) {
+                            recordDetailedError("update_permission_settings", error);
                             showUpdateStatus("설치 권한 화면을 열 수 없습니다: " + error.getMessage(), true);
                         }
                     })
@@ -548,6 +560,7 @@ public final class MainActivity extends Activity {
                     false
             );
         } catch (RuntimeException error) {
+            recordDetailedError("update_installer", error);
             showUpdateStatus("APK 설치 화면을 열 수 없습니다: " + error.getMessage(), true);
         }
     }
@@ -555,7 +568,7 @@ public final class MainActivity extends Activity {
     private void confirmReset() {
         new AlertDialog.Builder(this)
                 .setTitle("테스트 기록 초기화")
-                .setMessage("PASS/FAIL, 메모와 API 실행 이력을 모두 지울까요?")
+                .setMessage("PASS/FAIL, 메모, API 실행 이력과 crash 진단을 모두 지울까요?")
                 .setNegativeButton("취소", null)
                 .setPositiveButton("초기화", (dialog, which) -> resetReport())
                 .show();
@@ -571,6 +584,9 @@ public final class MainActivity extends Activity {
         editor.remove(HISTORY_KEY);
         editor.apply();
         executionHistory = "";
+        CrashDiagnostics.clearAll(this);
+        pendingCrash = "";
+        handledDiagnostics = "";
         notesInput.setText("");
         refreshReport();
         showResult("테스트 기록을 초기화했습니다.", false);
@@ -617,15 +633,34 @@ public final class MainActivity extends Activity {
                 .append(notes.trim().isEmpty() ? "없음" : notes.trim())
                 .append("\n\nAPI 실행 이력:\n")
                 .append(executionHistory == null || executionHistory.trim().isEmpty()
-                        ? "없음\n" : executionHistory);
+                        ? "없음\n" : executionHistory)
+                .append("\n이전 앱 비정상 종료 진단:\n")
+                .append(pendingCrash == null || pendingCrash.trim().isEmpty()
+                        ? "없음\n" : pendingCrash + "\n")
+                .append("\n처리된 내부 오류 상세:\n")
+                .append(handledDiagnostics == null || handledDiagnostics.trim().isEmpty()
+                        ? "없음\n" : handledDiagnostics + "\n");
         return report.toString();
+    }
+
+    private void recordDetailedError(String category, Throwable error) {
+        CrashDiagnostics.recordHandled(this, category, error);
+        handledDiagnostics = CrashDiagnostics.readHandled(this);
+        refreshReport();
     }
 
     private String deviceSummary() {
         return "제조사/모델: " + cleanReportText(Build.MANUFACTURER) + " / "
                 + cleanReportText(Build.MODEL) + "\nAndroid: "
                 + cleanReportText(Build.VERSION.RELEASE) + " (SDK " + Build.VERSION.SDK_INT + ")"
-                + "\n펌웨어 표시: " + cleanReportText(Build.DISPLAY);
+                + "\n보안 패치: " + cleanReportText(Build.VERSION.SECURITY_PATCH)
+                + "\n브랜드/기기/제품: " + cleanReportText(Build.BRAND) + " / "
+                + cleanReportText(Build.DEVICE) + " / " + cleanReportText(Build.PRODUCT)
+                + "\n하드웨어/보드: " + cleanReportText(Build.HARDWARE) + " / "
+                + cleanReportText(Build.BOARD)
+                + "\nABI: " + cleanReportText(Arrays.toString(Build.SUPPORTED_ABIS))
+                + "\n펌웨어 표시: " + cleanReportText(Build.DISPLAY)
+                + "\nBuild fingerprint: " + cleanReportText(Build.FINGERPRINT);
     }
 
     private String cleanReportText(String value) {

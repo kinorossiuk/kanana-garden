@@ -16,9 +16,9 @@ class AndroidBridgeTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn("VERSION_CODE=200", version)
-        self.assertIn("VERSION_NAME=0.2.0", version)
-        self.assertIn('version = "0.2.0"', package)
+        self.assertIn("VERSION_CODE=201", version)
+        self.assertIn("VERSION_NAME=0.2.1", version)
+        self.assertIn('version = "0.2.1"', package)
         self.assertIn('tags:\n      - "v*"', release)
         self.assertIn("secrets.ANDROID_SIGNING_KEY_BASE64", release)
         self.assertIn("secrets.ANDROID_SIGNING_PASSWORD", release)
@@ -38,6 +38,37 @@ class AndroidBridgeTests(unittest.TestCase):
             ],
         )
         self.assertNotIn("AccessibilityService", manifest)
+
+    def test_release_keeps_private_bounded_crash_diagnostics(self) -> None:
+        manifest = (BRIDGE / "app" / "src" / "main" / "AndroidManifest.xml").read_text(
+            encoding="utf-8"
+        )
+        build = (BRIDGE / "app" / "build.gradle").read_text(encoding="utf-8")
+        diagnostics = next(JAVA.rglob("CrashDiagnostics.java")).read_text(
+            encoding="utf-8"
+        )
+        activity = next(JAVA.rglob("MainActivity.java")).read_text(encoding="utf-8")
+
+        self.assertIn('android:name=".BridgeApplication"', manifest)
+        self.assertNotIn('android:debuggable="true"', manifest)
+        self.assertNotIn("debuggable true", build)
+        self.assertIn("Thread.setDefaultUncaughtExceptionHandler", diagnostics)
+        self.assertIn("delegate.uncaughtException(thread, error)", diagnostics)
+        self.assertIn("Context.MODE_PRIVATE", diagnostics)
+        self.assertIn("MAX_CRASH_BYTES = 12 * 1024", diagnostics)
+        self.assertIn("MAX_HANDLED_BYTES = 16 * 1024", diagnostics)
+        self.assertIn("[REDACTED]", diagnostics)
+        self.assertIn("CrashDiagnostics.readPending(this)", activity)
+        self.assertIn("이전 앱 비정상 종료 진단", activity)
+        self.assertIn("CrashDiagnostics.readHandled(this)", activity)
+        self.assertIn("처리된 내부 오류 상세", activity)
+        self.assertIn("CrashDiagnostics.clearAll(this)", activity)
+        self.assertIn("Build.HARDWARE", activity)
+        self.assertIn("Build.BOARD", activity)
+        self.assertIn("Build.SUPPORTED_ABIS", activity)
+        self.assertIn("Build.VERSION.SECURITY_PATCH", activity)
+        self.assertIn("Build.FINGERPRINT", activity)
+        self.assertNotIn("Build.SERIAL", activity)
 
     def test_bridge_has_no_arbitrary_execution_primitives(self) -> None:
         sources = "\n".join(
