@@ -8,19 +8,20 @@ shell 실행, 접근성 서비스와 화면 좌표 조작을 사용하지 않습
 
 GitHub Release에서 다음 두 파일을 같은 디렉터리에 받습니다.
 
-- `kanana-garden-bridge-0.2.1-release.apk`
-- `kanana-garden-bridge-0.2.1-release.apk.sha256`
+- `kanana-garden-bridge-0.2.2-release.apk`
+- `kanana-garden-bridge-0.2.2-release.apk.sha256`
 
-PC에서 해시를 확인하고 UIS7862S에 설치합니다.
+PC에서 해시를 확인하고 UIS7862S에 설치합니다. 앱 제목에는 `0.2.2`, GitHub
+Release에는 `v0.2.2`가 표시됩니다.
 
 ```bash
-sha256sum -c kanana-garden-bridge-0.2.1-release.apk.sha256
-adb install kanana-garden-bridge-0.2.1-release.apk
+sha256sum -c kanana-garden-bridge-0.2.2-release.apk.sha256
+adb install kanana-garden-bridge-0.2.2-release.apk
 adb shell am start -n \
   dev.kinorossiuk.kananagarden.bridge/.MainActivity
 ```
 
-v0.2.0은 OTA용 전용 키로 서명한 첫 버전이며 v0.2.1도 같은 키를 사용합니다.
+v0.2.0은 OTA용 전용 키로 서명한 첫 버전이며 v0.2.2도 같은 키를 사용합니다.
 기존 alpha.2 또는 CI debug APK가 있으면 서명자가 다르므로 기존 테스트 앱을 한 번
 삭제한 뒤 설치해야 합니다. v0.2.0 이후 버전끼리는 앱 안에서 업데이트할 수 있습니다.
 주행 중에는 설치하거나 조작하지 마세요.
@@ -98,7 +99,8 @@ curl -fsS http://127.0.0.1:8762/health
 `192.168.0.40:8443`으로 전달해야 합니다. 포트 forwarding이 불가능할 때만
 Cloudflare Tunnel을 사용합니다.
 
-APK의 `LTE 제출 설정`에 다음 값을 넣습니다.
+APK의 `LTE 제출 설정`에 다음 값을 최초 한 번만 넣습니다. 저장 뒤에는 설정 입력란을
+접어 두고 전송 버튼만 표시하며, 같은 앱을 OTA 업데이트해도 값이 유지됩니다.
 
 ```text
 HTTPS 수신 주소: https://YOUR_SUBDOMAIN.duckdns.org:8443
@@ -136,7 +138,7 @@ adb shell am start -n \
 
 | action | 0단계 구현 | 비고 |
 |---|---:|---|
-| 볼륨 올림·내림·설정·음소거 | 예 | `STREAM_MUSIC` 대상 |
+| 볼륨 올림·내림·설정·음소거 | 예 | FYT 메인 사운드 모듈 우선, Android 활성 볼륨 폴백 |
 | 길안내 시작 | 부분 | 검증된 `geo:` Intent로 설치된 앱에 목적지 전달 |
 | 길안내 종료 | 아니오 | Android 공통 API가 없어 앱별 어댑터 필요 |
 | 재생·정지·다음·이전 | 예 | 활성 `MediaSession`과 알림 접근 필요 |

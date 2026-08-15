@@ -48,6 +48,9 @@ public final class MainActivity extends Activity {
     private EditText notesInput;
     private EditText receiverUrlInput;
     private EditText receiverTokenInput;
+    private LinearLayout receiverSettingsPanel;
+    private TextView receiverSettingsStatusView;
+    private Button receiverSettingsToggle;
     private TextView resultView;
     private TextView reportView;
     private TextView updateStatusView;
@@ -75,6 +78,14 @@ public final class MainActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         loadIntentPayload(intent);
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (executor != null) {
+            executor.close();
+        }
+        super.onDestroy();
     }
 
     private View buildContent() {
@@ -207,13 +218,26 @@ public final class MainActivity extends Activity {
         content.addView(updateStatusView);
 
         content.addView(sectionTitle("LTE 제출 설정"));
+
+        boolean receiverConfigured = hasSavedReceiverSettings();
+        receiverSettingsStatusView = text("", 13);
+        content.addView(receiverSettingsStatusView);
+
+        receiverSettingsToggle = button("");
+        receiverSettingsToggle.setOnClickListener(
+                view -> showReceiverSettings(receiverSettingsPanel.getVisibility() != View.VISIBLE)
+        );
+        content.addView(receiverSettingsToggle);
+
+        receiverSettingsPanel = new LinearLayout(this);
+        receiverSettingsPanel.setOrientation(LinearLayout.VERTICAL);
+
         TextView submitGuide = text(
-                "분석 PC의 보고서 수신기를 DuckDNS+nginx 또는 Tunnel로 연결한 HTTPS "
-                        + "주소와 32자 이상의 제출 토큰을 입력합니다. 토큰은 APK에 "
-                        + "미리 포함되지 않습니다.",
+                "최초 연결 때만 HTTPS 수신 주소와 제출 코드를 저장합니다. 저장된 값은 "
+                        + "앱 업데이트 후에도 유지되며 평소에는 전송 버튼만 누르면 됩니다.",
                 13
         );
-        content.addView(submitGuide);
+        receiverSettingsPanel.addView(submitGuide);
 
         receiverUrlInput = new EditText(this);
         receiverUrlInput.setHint("https://reports.example.com");
@@ -222,7 +246,7 @@ public final class MainActivity extends Activity {
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI
         );
         receiverUrlInput.setText(preferences.getString(RECEIVER_URL_KEY, ""));
-        content.addView(receiverUrlInput, matchWidthWrapHeight());
+        receiverSettingsPanel.addView(receiverUrlInput, matchWidthWrapHeight());
 
         receiverTokenInput = new EditText(this);
         receiverTokenInput.setHint("제출 전용 토큰 (32자 이상)");
@@ -231,11 +255,13 @@ public final class MainActivity extends Activity {
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD
         );
         receiverTokenInput.setText(preferences.getString(RECEIVER_TOKEN_KEY, ""));
-        content.addView(receiverTokenInput, matchWidthWrapHeight());
+        receiverSettingsPanel.addView(receiverTokenInput, matchWidthWrapHeight());
 
         Button saveReceiver = button("LTE 제출 설정 저장");
         saveReceiver.setOnClickListener(view -> saveReceiverSettings());
-        content.addView(saveReceiver);
+        receiverSettingsPanel.addView(saveReceiver);
+        content.addView(receiverSettingsPanel);
+        showReceiverSettings(!receiverConfigured);
 
         Button submitReport = button("LTE로 현재 저장소에 결과 제출");
         submitReport.setOnClickListener(view -> submitReportOverLte(submitReport));
@@ -428,10 +454,36 @@ public final class MainActivity extends Activity {
                     .putString(RECEIVER_TOKEN_KEY, token)
                     .apply();
             receiverUrlInput.setText(url);
+            showReceiverSettings(false);
             showResult("LTE 제출 설정을 이 앱의 비공개 저장소에 저장했습니다.", false);
         } catch (RuntimeException error) {
             showResult("제출 설정 거부: " + error.getMessage(), true);
         }
+    }
+
+    private boolean hasSavedReceiverSettings() {
+        try {
+            ReportUploader.validateBaseUrl(preferences.getString(RECEIVER_URL_KEY, ""));
+            ReportUploader.validateToken(preferences.getString(RECEIVER_TOKEN_KEY, ""));
+            return true;
+        } catch (RuntimeException error) {
+            return false;
+        }
+    }
+
+    private void showReceiverSettings(boolean show) {
+        if (receiverSettingsPanel == null || receiverSettingsStatusView == null
+                || receiverSettingsToggle == null) {
+            return;
+        }
+        receiverSettingsPanel.setVisibility(show ? View.VISIBLE : View.GONE);
+        boolean configured = hasSavedReceiverSettings();
+        receiverSettingsStatusView.setText(
+                configured
+                        ? "LTE 전송 준비됨 · 앱 업데이트 뒤에도 연결 설정이 유지됩니다."
+                        : "LTE 전송을 사용하려면 최초 한 번만 연결 설정을 저장하세요."
+        );
+        receiverSettingsToggle.setText(show ? "연결 설정 닫기" : "연결 설정 변경");
     }
 
     private void submitReportOverLte(Button submitButton) {

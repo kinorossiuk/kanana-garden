@@ -16,9 +16,9 @@ class AndroidBridgeTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn("VERSION_CODE=201", version)
-        self.assertIn("VERSION_NAME=0.2.1", version)
-        self.assertIn('version = "0.2.1"', package)
+        self.assertIn("VERSION_CODE=202", version)
+        self.assertIn("VERSION_NAME=0.2.2", version)
+        self.assertIn('version = "0.2.2"', package)
         self.assertIn('tags:\n      - "v*"', release)
         self.assertIn("secrets.ANDROID_SIGNING_KEY_BASE64", release)
         self.assertIn("secrets.ANDROID_SIGNING_PASSWORD", release)
@@ -38,6 +38,31 @@ class AndroidBridgeTests(unittest.TestCase):
             ],
         )
         self.assertNotIn("AccessibilityService", manifest)
+
+    def test_fyt_volume_uses_fixed_vendor_sound_module_with_android_fallback(self) -> None:
+        manifest = (BRIDGE / "app" / "src" / "main" / "AndroidManifest.xml").read_text(
+            encoding="utf-8"
+        )
+        vendor = next(JAVA.rglob("FytVolumeController.java")).read_text(
+            encoding="utf-8"
+        )
+        executor = next(JAVA.rglob("ActionExecutor.java")).read_text(encoding="utf-8")
+
+        self.assertIn('<package android:name="com.syu.ms" />', manifest)
+        self.assertIn('"com.syu.ms",', vendor)
+        self.assertIn('"app.ToolkitService"', vendor)
+        self.assertIn('TOOLKIT_DESCRIPTOR = "com.syu.ipc.IRemoteToolkit"', vendor)
+        self.assertIn('MODULE_DESCRIPTOR = "com.syu.ipc.IRemoteModule"', vendor)
+        self.assertIn("SOUND_MODULE = 4", vendor)
+        self.assertIn("SOUND_VOLUME_COMMAND = 0", vendor)
+        self.assertIn("VOLUME_UP = -1", vendor)
+        self.assertIn("VOLUME_DOWN = -2", vendor)
+        self.assertIn("MAX_VOLUME = 36", vendor)
+        self.assertIn("IBinder.FLAG_ONEWAY", vendor)
+        self.assertIn("if (fytVolume.adjust(fytCommand))", executor)
+        self.assertIn("if (fytVolume.setPercent(levelPercent))", executor)
+        self.assertIn("audio.adjustVolume(direction", executor)
+        self.assertNotIn("audio.adjustStreamVolume", executor)
 
     def test_release_keeps_private_bounded_crash_diagnostics(self) -> None:
         manifest = (BRIDGE / "app" / "src" / "main" / "AndroidManifest.xml").read_text(
@@ -104,6 +129,9 @@ class AndroidBridgeTests(unittest.TestCase):
         self.assertIn("HttpsURLConnection", uploader)
         self.assertIn('"https".equalsIgnoreCase', uploader)
         self.assertIn("setInstanceFollowRedirects(false)", uploader)
+        self.assertIn("hasSavedReceiverSettings()", activity)
+        self.assertIn("showReceiverSettings(!receiverConfigured)", activity)
+        self.assertIn("앱 업데이트 뒤에도 연결 설정이 유지됩니다", activity)
 
     def test_ota_update_is_user_initiated_and_verifies_release(self) -> None:
         activity = next(JAVA.rglob("MainActivity.java")).read_text(encoding="utf-8")

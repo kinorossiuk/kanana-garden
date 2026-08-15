@@ -15,9 +15,11 @@ import java.util.List;
 /** Executes only the fixed Android APIs represented by {@link VehicleAction}. */
 final class ActionExecutor {
     private final Activity activity;
+    private final FytVolumeController fytVolume;
 
     ActionExecutor(Activity activity) {
         this.activity = activity;
+        this.fytVolume = new FytVolumeController(activity);
     }
 
     String execute(VehicleAction command) {
@@ -62,19 +64,37 @@ final class ActionExecutor {
         return "Kanana Garden 미디어 제어의 알림 접근을 허용한 뒤 앱으로 돌아오세요.";
     }
 
+    void close() {
+        fytVolume.close();
+    }
+
     private String adjustVolume(int direction, String result) {
+        int fytCommand;
+        if (direction == AudioManager.ADJUST_RAISE) {
+            fytCommand = FytVolumeController.VOLUME_UP;
+        } else if (direction == AudioManager.ADJUST_LOWER) {
+            fytCommand = FytVolumeController.VOLUME_DOWN;
+        } else if (direction == AudioManager.ADJUST_MUTE) {
+            fytCommand = FytVolumeController.VOLUME_MUTE;
+        } else if (direction == AudioManager.ADJUST_UNMUTE) {
+            fytCommand = FytVolumeController.VOLUME_UNMUTE;
+        } else {
+            throw unavailable("지원하지 않는 볼륨 조정입니다.");
+        }
+        if (fytVolume.adjust(fytCommand)) {
+            return result + " (FYT 메인 볼륨)";
+        }
         AudioManager audio = audioManager();
-        audio.adjustStreamVolume(
-                AudioManager.STREAM_MUSIC,
-                direction,
-                AudioManager.FLAG_SHOW_UI
-        );
-        return result;
+        audio.adjustVolume(direction, AudioManager.FLAG_SHOW_UI);
+        return result + " (Android 활성 볼륨)";
     }
 
     private String setVolume(Integer levelPercent) {
         if (levelPercent == null) {
             throw unavailable("볼륨 값이 없습니다.");
+        }
+        if (fytVolume.setPercent(levelPercent)) {
+            return "FYT 메인 볼륨을 " + levelPercent + "%로 설정했습니다.";
         }
         AudioManager audio = audioManager();
         int maximum = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);

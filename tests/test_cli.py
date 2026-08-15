@@ -28,7 +28,7 @@ class CLITests(unittest.TestCase):
             with self.assertRaises(SystemExit) as raised:
                 build_parser().parse_args(["--version"])
         self.assertEqual(raised.exception.code, 0)
-        self.assertEqual(stdout.getvalue().strip(), "kanana-garden 0.2.1")
+        self.assertEqual(stdout.getvalue().strip(), "kanana-garden 0.2.2")
 
     def test_list_json(self) -> None:
         status, stdout, stderr = self.invoke("list", "--json")

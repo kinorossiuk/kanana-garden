@@ -96,7 +96,7 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(result.content, "결과입니다.")
         self.assertEqual(result.usage, {"prompt_tokens": 11, "completion_tokens": 4})
         self.assertEqual(FakeOpenAIHandler.last_authorization, "Bearer secret")
-        self.assertEqual(FakeOpenAIHandler.last_user_agent, "kanana-garden/0.2.1")
+        self.assertEqual(FakeOpenAIHandler.last_user_agent, "kanana-garden/0.2.2")
         self.assertFalse(FakeOpenAIHandler.last_payload["stream"])
 
     def test_http_error_is_readable(self) -> None:
