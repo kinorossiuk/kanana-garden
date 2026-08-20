@@ -2,7 +2,7 @@
 set -euo pipefail
 umask 077
 
-for command_name in openssl base64 rg; do
+for command_name in openssl base64; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "Missing required command: $command_name" >&2
     exit 1
@@ -41,10 +41,15 @@ if [[ ! -f "$keystore_file" ]]; then
   echo "Android OTA signing key is not a regular file: $keystore_file" >&2
   exit 1
 fi
-if [[ ! -f "$password_file" ]] || ! rg -q '^[0-9a-f]{64}$' "$password_file"; then
+password_lines=()
+if [[ -f "$password_file" ]]; then
+  mapfile -t password_lines < "$password_file"
+fi
+if [[ ${#password_lines[@]} -ne 1 || ! "${password_lines[0]:-}" =~ ^[0-9a-f]{64}$ ]]; then
   echo "Existing signing password file has an unexpected format: $password_file" >&2
   exit 1
 fi
+unset password_lines
 
 openssl pkcs12 -in "$keystore_file" -passin "file:$password_file" -noout
 actual_signer="$({
