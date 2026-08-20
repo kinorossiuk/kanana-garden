@@ -23,6 +23,19 @@ class AndroidBridgeTests(unittest.TestCase):
         self.assertIn("secrets.ANDROID_SIGNING_KEY_BASE64", release)
         self.assertIn("secrets.ANDROID_SIGNING_PASSWORD", release)
         self.assertNotIn("secrets.ANDROID_KEY_PASSWORD", release)
+        self.assertIn("./ops/android-signing/verify-apk.sh", release)
+        self.assertLess(
+            release.index("./ops/android-signing/verify-apk.sh"),
+            release.index('gh release create "${GITHUB_REF_NAME}"'),
+        )
+
+        pinned_signer = (
+            BRIDGE / "release-cert-sha256.txt"
+        ).read_text(encoding="utf-8").strip()
+        self.assertEqual(
+            pinned_signer,
+            "c60bfc4428e62f5d54684f855bc20da7c0fefa2057b2f6a56cfa8d8e2e30d63a",
+        )
 
     def test_bridge_declares_only_required_sensitive_permission(self) -> None:
         manifest = (BRIDGE / "app" / "src" / "main" / "AndroidManifest.xml").read_text(

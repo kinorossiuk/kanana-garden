@@ -76,14 +76,22 @@ jobs:
           KANANA_ANDROID_KEY_ALIAS: kanana-bridge
           KANANA_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_PASSWORD }}
         run: gradle -p android/uis7862s-bridge --no-daemon :app:assembleRelease
-      - name: Verify APK and create OTA metadata
+      - name: Stage release APK
         shell: bash
         run: |
           set -euo pipefail
           cp android/uis7862s-bridge/app/build/outputs/apk/release/app-release.apk \
             "$APK_ASSET"
-          "${ANDROID_HOME}/build-tools/36.0.0/apksigner" verify \
-            --verbose --print-certs "$APK_ASSET"
+      - name: Verify pinned OTA signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          APKSIGNER="${ANDROID_HOME}/build-tools/36.0.0/apksigner" \
+            ./ops/android-signing/verify-apk.sh "$APK_ASSET"
+      - name: Create OTA metadata
+        shell: bash
+        run: |
+          set -euo pipefail
           sha256sum "$APK_ASSET" > "$SHA_ASSET"
           apk_sha256="$(cut -d ' ' -f1 "$SHA_ASSET")"
           jq -n \
