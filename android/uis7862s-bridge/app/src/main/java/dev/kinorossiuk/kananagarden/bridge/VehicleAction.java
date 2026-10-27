@@ -2,6 +2,7 @@ package dev.kinorossiuk.kananagarden.bridge;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.json.JSONTokener;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -67,7 +68,13 @@ final class VehicleAction {
         }
 
         try {
-            JSONObject value = new JSONObject(content);
+            requireStrictJsonCharacters(content);
+            JSONTokener tokener = new JSONTokener(content);
+            Object parsed = tokener.nextValue();
+            if (!(parsed instanceof JSONObject) || tokener.nextClean() != 0) {
+                throw invalid("JSON 객체 하나만 허용합니다.");
+            }
+            JSONObject value = (JSONObject) parsed;
             requireExactKeys(value, TOP_LEVEL_FIELDS, "최상위");
 
             String action = requiredString(value, "action");
@@ -141,6 +148,29 @@ final class VehicleAction {
             );
         } catch (JSONException error) {
             throw invalid("설명이나 코드 펜스가 없는 올바른 JSON 객체가 필요합니다.", error);
+        }
+    }
+
+    private static void requireStrictJsonCharacters(String content) {
+        boolean quoted = false;
+        boolean escaped = false;
+        for (int index = 0; index < content.length(); index++) {
+            char current = content.charAt(index);
+            if (quoted) {
+                if (escaped) {
+                    escaped = false;
+                } else if (current == '\\') {
+                    escaped = true;
+                } else if (current == '"') {
+                    quoted = false;
+                } else if (current < 0x20) {
+                    throw invalid("JSON 문자열에 이스케이프되지 않은 제어 문자가 있습니다.");
+                }
+            } else if (current == '"') {
+                quoted = true;
+            } else if (current == '\'' || current == '#' || current == '/') {
+                throw invalid("주석, 작은따옴표 등 비표준 JSON 문법은 허용하지 않습니다.");
+            }
         }
     }
 

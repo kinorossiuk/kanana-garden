@@ -2,7 +2,7 @@
 
 **Powered by Kanana**
 
-현재 테스트 릴리스: **v0.2.2** (`0.2.2`)
+현재 테스트 릴리스: **v0.2.3** (`0.2.3`)
 
 Kanana Garden은 한국어 LLM을 반복 시험하고, 같은 모델 설정이 서버 재시작
 후에도 같은 품질과 성능을 내는지 증빙한 뒤 온디바이스 배포로 넘기기 위한
@@ -25,11 +25,11 @@ APK에 포함하지 않으며 온디바이스 모델 변환은 안정화 게이�
 
 | 항목 | 상태 | 확인된 내용 / 남은 작업 |
 |---|---|---|
-| Python 서버·CLI·평가 도구 | 구현됨 / 로컬 검사 통과 | 2026-10-27 당시 미커밋 변경을 포함한 작업 트리에서 단위 테스트 105개, `make validate`, 카탈로그 검사 통과. 실모델 시험은 별도 필요 |
+| Python 서버·CLI·평가 도구 | 구현됨 / 로컬 검사 통과 | 단위 테스트 122개, `make validate`, 카탈로그 검사 통과. 실모델 시험은 별도 필요 |
 | Android 제어 브리지 | 구현됨 / 장비 검증 필요 | 고정 버튼·수동 JSON으로 볼륨, 목적지 전달, 미디어 제어 시험 가능. 실기기 결과 미확인 |
 | LTE 보고서·진단·앱 OTA | 구현됨 / 실환경 검증 필요 | 수신기와 앱 코드, 서명·해시 검증 경로 제공. 운영 환경의 정상 동작과 구분 |
-| 전체 코드 리뷰·버그 수정 | 준비 / 일부 리뷰 완료 | 작업 지시서 초안 작성. 전체 영역 리뷰와 수정 후 검증은 미완료 |
-| Android 호환성·CI 보완 | 로컬 변경 있음 / 검증 중 | OTA API 호출·버전별 스타일 수정, CI lint 추가. 미커밋이며 빌드·lint 결과 미확인 |
+| 전체 코드 리뷰·버그 수정 | 일부 수정 / 후속 조치 필요 | [완료 리뷰](docs/CODE_REVIEW_COMPLETION.md)에 미해결 결함 3건과 검증 한계 기록 |
+| Android 호환성·CI 보완 | 로컬 검사 통과 / 실기기 검증 필요 | debug 단위 테스트·빌드·lint와 서명 없는 release 빌드·lint 통과 |
 | 5600G 실모델·재시작 안정성·패리티 | 증빙 없음 | 카탈로그의 실모델 실행·기준선·런타임 패리티 리포트 0건 |
 | UIS7862S 제어 호환성 | 증빙 미확인 | 현재 checkout에 기기 시험 보고서 없음 |
 | 5600G → Android 자동 연결·음성 입력 | 미구현 | 현재 모델 결과를 자동 전달하는 사용 흐름 없음 |
@@ -51,8 +51,8 @@ APK에 포함하지 않으며 온디바이스 모델 변환은 안정화 게이�
 
 - 5600G 명령 해석 결과를 Android 브리지에 자동 전달하는 통합과 음성 입력은
   아직 구현되지 않았습니다. 브리지는 고정 버튼 또는 수동 action JSON으로 시험합니다.
-- 차량 명령 예제는 기대 action 문자열과 JSON 계약을 검사하지만, 목적지나
-  볼륨 값이 입력과 일치하는지까지 충분히 검증하지 않습니다.
+- 차량 명령 예제는 선언된 기대 action과 slot을 비교합니다. 실모델 품질과
+  리뷰에서 확인된 입력 검증 결함은 추가 확인이 필요합니다.
 - 내비게이션은 `geo:` Intent로 목적지를 전달하므로 대상 앱의 길안내 동작은
   실기기 확인이 필요합니다. 길안내 종료와 검색어 음악 재생은 미지원입니다.
 - `uis7862s-report-pull`은 `adb run-as`를 사용합니다. 디버그 불가 release
@@ -117,11 +117,11 @@ Git commit, 이슈 또는 빌드 로그에 붙여넣지 않습니다.
 초기 브리지는 LLM을 포함하지 않습니다. ADB 또는 로컬 테스트 입력으로 고정된
 action JSON을 받아 실행하고, 기기·펌웨어별 실패를 먼저 분리합니다.
 
-`v0.2.2` GitHub Release에는 고정된 전용 키로 서명한 APK와 SHA-256 파일을 함께
+`v0.2.3` GitHub Release에는 고정된 전용 키로 서명한 APK와 SHA-256 파일을 함께
 첨부합니다. 설치·권한 설정·시험 순서는
 [UIS7862S 0단계 제어 브리지](android/uis7862s-bridge/README.md)를 따릅니다.
 
-v0.2.2 앱은 시험 순서, PASS/FAIL 체크박스, 기기·펌웨어 정보, API 실행 이력과
+v0.2.3 앱은 시험 순서, PASS/FAIL 체크박스, 기기·펌웨어 정보, API 실행 이력과
 메모를 하나의 보고서로 만듭니다. LTE 환경에서는 사용자가 설정한 HTTPS 수신기로
 버튼을 눌러 제출하며, 수신기는 현재 checkout의 `reports/uis7862s/inbox/`에
 보고서 원문과 SHA-256 메타데이터를 저장합니다. 수신 주소와 토큰은 APK에
@@ -209,7 +209,7 @@ confidence, requires_confirmation 네 필드만 허용하며, package 이름·sh
 - 내장 레시피 전체가 한 서버 세션에서 각각 3회 연속 통과
 - 서버 재시작 후 두 번째 기준선도 전부 통과
 - `server-compare`의 모든 동일성·세션 분리 검사가 통과
-- `vehicle-control-ko`의 action JSON 계약 검증이 반복 실행마다 통과
+- `vehicle-control-ko`의 action JSON 계약과 기대 action·핵심 slot 일치 검증이 반복 실행마다 통과
 - model revision, dtype, prompt, generation 설정이 고정
 - 반복 실행 중 미해결 crash, OOM, 응답 모델 불일치가 없음
 - 0단계 제어 브리지가 대상 펌웨어에서 볼륨·길안내·음악 동작을 실행
@@ -297,8 +297,8 @@ PYTHONPATH=src python3 -m kanana_garden catalog --check docs/CATALOG.md
 특정 버전을 다시 확인하려면 태그를 checkout합니다.
 
 ```bash
-git checkout v0.2.2
-kanana-garden --version  # 0.2.2
+git checkout v0.2.3
+kanana-garden --version  # 0.2.3
 ```
 
 새 recipe 기여 절차와 리포트 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md), 현재

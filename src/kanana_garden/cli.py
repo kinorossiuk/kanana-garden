@@ -634,14 +634,17 @@ def _cmd_check(args: argparse.Namespace) -> int:
             messages=recipe.render(example["input"]),
             generation=recipe.generation,
         )
-        latency_seconds = time.monotonic() - started
+        latency_seconds = max(round(time.monotonic() - started, 3), 0.001)
         expected = example.get("expected_contains")
         content_passed = expected is None or expected in result.content
         model_passed = result.model == model
         action_contract_valid: bool | None = None
         parsed_action: dict[str, object] | None = None
         if recipe.slug == "vehicle-control-ko":
-            from .vehicle_control import parse_vehicle_action
+            from .vehicle_control import (
+                parse_vehicle_action,
+                vehicle_action_matches_example,
+            )
 
             try:
                 parsed_action = parse_vehicle_action(result.content)
@@ -661,13 +664,17 @@ def _cmd_check(args: argparse.Namespace) -> int:
                     content_passed
                     and model_passed
                     and action_contract_valid is not False
+                    and (
+                        action_contract_valid is None
+                        or vehicle_action_matches_example(parsed_action, example)
+                    )
                 ),
                 "expected_contains": expected,
                 "response_model": result.model,
                 "model_matched": model_passed,
                 "content": result.content,
                 "usage": result.usage,
-                "latency_seconds": round(latency_seconds, 3),
+                "latency_seconds": latency_seconds,
                 "tokens_per_second": (
                     round(tokens_per_second, 3)
                     if tokens_per_second is not None

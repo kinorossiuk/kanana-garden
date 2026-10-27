@@ -96,6 +96,16 @@ class FakeClient:
         )
 
 
+class IncorrectSlotClient(FakeClient):
+    def chat(self, **kwargs: object) -> ChatResult:
+        result = super().chat(**kwargs)
+        content = result.content.replace(
+            '"action":"volume_set","slots":{"level_percent":30}',
+            '"action":"volume_set","slots":{"level_percent":80}',
+        )
+        return ChatResult(content=content, model=result.model, usage=result.usage)
+
+
 class HalfSecondClock:
     def __init__(self) -> None:
         self.value = 0.0
@@ -137,6 +147,30 @@ class BaselineTests(unittest.TestCase):
             write_server_baseline_report(report, path)
             self.assertEqual(validate_report_path(path, recipes, suites), [])
             self.assertEqual(json.loads(path.read_text(encoding="utf-8")), report)
+
+    def test_vehicle_baseline_rejects_wrong_volume_slot(self) -> None:
+        report = run_server_baseline(
+            client=IncorrectSlotClient(),
+            endpoint="http://server.local:8000/v1",
+            model=MODEL,
+            recipes=iter_builtin_recipes(),
+            repetitions=3,
+            clock=HalfSecondClock(),
+            checked_at=CHECKED_AT,
+        )
+        self.assertFalse(report["passed"])
+        vehicle = next(
+            item for item in report["recipes"] if item["slug"] == "vehicle-control-ko"
+        )
+        sample = vehicle["samples"][2]
+        self.assertTrue(sample["action_contract_valid"])
+        self.assertFalse(sample["passed"])
+        recipes, _ = load_assets()
+        self.assertEqual(validate_server_baseline(report, recipes), [])
+
+        sample["passed"] = True
+        errors = validate_server_baseline(report, recipes)
+        self.assertTrue(any("samples[2].passed" in error for error in errors))
 
     def test_tampered_content_summary_and_rate_are_rejected(self) -> None:
         report, _ = self.run_baseline()

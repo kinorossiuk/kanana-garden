@@ -196,7 +196,10 @@ def run_server_baseline(
                         "passed": content_passed and model_matched,
                 }
                 if recipe.slug == "vehicle-control-ko":
-                    from .vehicle_control import parse_vehicle_action
+                    from .vehicle_control import (
+                        parse_vehicle_action,
+                        vehicle_action_matches_example,
+                    )
 
                     try:
                         parsed_action = parse_vehicle_action(response.content)
@@ -204,7 +207,10 @@ def run_server_baseline(
                         parsed_action = None
                     sample["action_contract_valid"] = parsed_action is not None
                     sample["parsed_action"] = parsed_action
-                    sample["passed"] = sample["passed"] and parsed_action is not None
+                    sample["passed"] = (
+                        sample["passed"]
+                        and vehicle_action_matches_example(parsed_action, example)
+                    )
                 recipe_run["samples"].append(sample)
 
     return build_server_baseline_report(

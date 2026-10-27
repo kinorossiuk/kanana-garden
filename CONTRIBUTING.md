@@ -60,7 +60,7 @@ Kanana Garden의 가장 작은 기여 단위는 “다른 사람이 그대로 �
 | `prompt_template` | `{input}` 자리표시자를 정확히 한 종류 포함 |
 | `generation` | `temperature`, `top_p`, `max_tokens` |
 | `tags` | 검색 가능한 태그 한 개 이상 |
-| `examples` | `input`과 선택적 `expected_contains` |
+| `examples` | `input`과 선택적 `expected_contains`, `expected_action`, `expected_slots` |
 
 ## 품질 기준
 
@@ -119,7 +119,9 @@ PYTHONPATH=src python3 -m kanana_garden catalog \
 ## 차량 제어 기여
 
 `vehicle-control-ko`의 모델 출력은 `vehicle_control.py`의 action 계약을
-통과해야 합니다. 새 action을 추가할 때는 다음을 지킵니다.
+통과하고 예제의 `expected_action` 및 선언된 `expected_slots`와 정확히 일치해야
+합니다. 따라서 action 이름만 맞고 볼륨 값이나 목적지가 틀린 응답은 실패합니다.
+새 action을 추가할 때는 다음을 지킵니다.
 
 - 모델 출력에는 실행 코드 대신 의미와 제한된 slot만 둡니다.
 - package 이름, shell, URL, 화면 좌표를 모델이 정하지 못하게 합니다.

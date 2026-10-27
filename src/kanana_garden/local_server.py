@@ -341,8 +341,14 @@ def serve(
     dtype: str,
     api_key: str | None,
 ) -> None:
-    if host not in {"127.0.0.1", "localhost", "::1"} and not api_key:
-        raise RuntimeError("외부 주소에 바인딩하려면 --api-key가 필요합니다.")
+    if host not in {"127.0.0.1", "localhost", "::1"} and (
+        not isinstance(api_key, str)
+        or len(api_key) < 32
+        or api_key.startswith("replace-with-")
+    ):
+        raise RuntimeError(
+            "외부 주소에 바인딩하려면 예제 값이 아닌 32자 이상 --api-key가 필요합니다."
+        )
     backend = TransformersBackend(
         model_id=model_id,
         revision=revision,

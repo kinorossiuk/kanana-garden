@@ -24,7 +24,12 @@ REPORT = (REPORT_HEADER + "앱 버전: 0.0.1-alpha.3\n- [PASS] 볼륨 올리기\
 class ReportReceiverTests(unittest.TestCase):
     def test_token_must_be_long_and_single_line(self) -> None:
         self.assertEqual(validate_receiver_token(TOKEN), TOKEN)
-        for value in (None, "short", "x" * 32 + "\n"):
+        for value in (
+            None,
+            "short",
+            "x" * 32 + "\n",
+            "replace-with-a-64-character-random-token",
+        ):
             with self.subTest(value=value):
                 with self.assertRaises(ReportReceiverError):
                     validate_receiver_token(value)

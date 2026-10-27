@@ -39,6 +39,7 @@ final class FytVolumeController implements ServiceConnection, AutoCloseable {
 
     private final Context context;
     private volatile IBinder soundModule;
+    private volatile IBinder toolkitService;
     private boolean bound;
 
     FytVolumeController(Context context) {
@@ -58,17 +59,20 @@ final class FytVolumeController implements ServiceConnection, AutoCloseable {
 
     @Override
     public void onServiceConnected(ComponentName name, IBinder service) {
+        toolkitService = service;
         soundModule = getRemoteModule(service, SOUND_MODULE);
     }
 
     @Override
     public void onServiceDisconnected(ComponentName name) {
         soundModule = null;
+        toolkitService = null;
     }
 
     @Override
     public void onBindingDied(ComponentName name) {
         soundModule = null;
+        toolkitService = null;
         if (bound) {
             try {
                 context.unbindService(this);
@@ -98,7 +102,15 @@ final class FytVolumeController implements ServiceConnection, AutoCloseable {
 
     private boolean sendVolumeCommand(int value) {
         IBinder module = soundModule;
+        IBinder toolkit = toolkitService;
+        if ((module == null || !module.isBinderAlive()) && toolkit != null && toolkit.isBinderAlive()) {
+            module = getRemoteModule(toolkit, SOUND_MODULE);
+            soundModule = module;
+        }
         if (module == null || !module.isBinderAlive()) {
+            if (bound) {
+                throw new IllegalStateException("FYT 사운드 모듈이 준비되지 않았거나 응답하지 않습니다. 잠시 후 다시 시도하세요.");
+            }
             return false;
         }
         Parcel data = Parcel.obtain();
@@ -116,11 +128,12 @@ final class FytVolumeController implements ServiceConnection, AutoCloseable {
             );
             if (!accepted) {
                 soundModule = null;
+                throw new IllegalStateException("FYT 사운드 모듈이 명령을 수락하지 않았습니다. 다시 시도하세요.");
             }
-            return accepted;
+            return true;
         } catch (RemoteException | RuntimeException error) {
             soundModule = null;
-            return false;
+            throw new IllegalStateException("FYT 사운드 모듈 통신에 실패했습니다. 다시 시도하세요.", error);
         } finally {
             data.recycle();
         }
@@ -148,6 +161,7 @@ final class FytVolumeController implements ServiceConnection, AutoCloseable {
     @Override
     public void close() {
         soundModule = null;
+        toolkitService = null;
         if (!bound) {
             return;
         }

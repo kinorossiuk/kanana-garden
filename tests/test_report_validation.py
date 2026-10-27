@@ -103,6 +103,65 @@ class ReportValidationTests(unittest.TestCase):
         self.assertTrue(any("cases[0].passed" in error for error in errors))
         self.assertTrue(any(error.startswith("passed") for error in errors))
 
+    def test_model_check_rejects_tampered_performance_fields(self) -> None:
+        recipes, _ = load_assets()
+        for field, value in (
+            ("latency_seconds", -1),
+            ("tokens_per_second", "tampered"),
+        ):
+            with self.subTest(field=field):
+                report = model_check_report()
+                report["cases"][0][field] = value
+                errors = validate_model_check(report, recipes)
+                self.assertTrue(any(field in error for error in errors))
+        report = model_check_report()
+        report["cases"][0]["usage"]["completion_tokens"] = -1
+        errors = validate_model_check(report, recipes)
+        self.assertTrue(any("completion_tokens" in error for error in errors))
+
+    def test_vehicle_model_check_rejects_wrong_slot_even_with_valid_contract(self) -> None:
+        recipes, _ = load_assets()
+        recipe = recipes["vehicle-control-ko"]
+        cases = []
+        for index, example in enumerate(recipe.examples, start=1):
+            action = {
+                "action": example["expected_action"],
+                "slots": copy.deepcopy(
+                    example.get("expected_slots", {"reason": "지원하지 않음"})
+                ),
+                "confidence": "high",
+                "requires_confirmation": False,
+            }
+            cases.append(
+                {
+                    "index": index,
+                    "passed": True,
+                    "expected_contains": example["expected_contains"],
+                    "response_model": MODEL,
+                    "model_matched": True,
+                    "content": json.dumps(action),
+                    "action_contract_valid": True,
+                    "parsed_action": action,
+                    "usage": {"completion_tokens": 4},
+                    "latency_seconds": 2.0,
+                    "tokens_per_second": 2.0,
+                }
+            )
+        report = build_report(
+            recipe=recipe,
+            endpoint="http://server.local:8000/v1",
+            requested_model=MODEL,
+            exposed_models=[MODEL],
+            cases=cases,
+            checked_at=CHECKED_AT,
+        )
+        wrong = report["cases"][2]
+        wrong["parsed_action"]["slots"]["level_percent"] = 80
+        wrong["content"] = json.dumps(wrong["parsed_action"])
+        errors = validate_model_check(report, recipes)
+        self.assertTrue(any("cases[2].passed" in error for error in errors))
+        self.assertTrue(any(error.startswith("passed") for error in errors))
+
     def test_model_check_requires_safe_endpoint(self) -> None:
         recipes, _ = load_assets()
         report = model_check_report()
@@ -122,6 +181,17 @@ class ReportValidationTests(unittest.TestCase):
         self.assertTrue(any("candidate.cases[0].passed" in error for error in errors))
         self.assertTrue(any("summary.candidate_pass_rate" in error for error in errors))
         self.assertTrue(any(error.startswith("passed") for error in errors))
+
+    def test_parity_rejects_tampered_performance_fields(self) -> None:
+        for field, value in (
+            ("latency_seconds", -1),
+            ("tokens_per_second", "tampered"),
+        ):
+            with self.subTest(field=field):
+                report, suite = parity_report()
+                report["candidate"]["cases"][0][field] = value
+                errors = validate_parity(report, {suite.slug: suite})
+                self.assertTrue(any(field in error for error in errors))
 
     def test_malformed_parity_case_list_is_rejected_without_crashing(self) -> None:
         report, suite = parity_report()

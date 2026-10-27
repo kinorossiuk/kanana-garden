@@ -100,7 +100,7 @@ final class UpdateManager {
         long total = 0;
         HttpsURLConnection connection = openHttps(update.apkUrl, "application/vnd.android.package-archive");
         try {
-            long declaredLength = connection.getContentLengthLong();
+            long declaredLength = connection.getContentLength();
             if (declaredLength > MAX_APK_BYTES) {
                 throw new IOException("업데이트 APK가 허용 크기를 초과합니다.");
             }

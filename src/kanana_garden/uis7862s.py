@@ -429,8 +429,10 @@ def pull_stage_zero_report(
         detail = result.stderr.strip() or result.text.strip() or "unknown error"
         detail = detail.replace(connected.serial, "[ADB_SERIAL_REDACTED]")
         raise AdbError(
-            "브리지 보고서를 읽을 수 없습니다. v0.2.0 이상 APK를 실행하고 "
-            f"체크 결과를 저장했는지 확인하세요: {detail[:500]}"
+            "브리지 보고서를 run-as로 읽을 수 없습니다. 이 경로는 debuggable "
+            "디버그 APK에서만 동작합니다. release APK에서는 앱의 '다른 앱으로 결과 공유' "
+            "또는 LTE 제출을 사용하세요. 디버그 APK라면 보고서 저장 여부도 확인하세요: "
+            f"{detail[:500]}"
         )
     if not result.stdout:
         raise AdbError("브리지 보고서가 비어 있습니다. 앱에서 체크 결과를 먼저 저장하세요.")

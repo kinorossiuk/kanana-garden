@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
@@ -123,6 +124,45 @@ def _base_checks(
     return errors
 
 
+def _performance_fields(
+    stored: dict[str, Any], prefix: str, errors: list[str]
+) -> tuple[dict[str, Any], float, float | None]:
+    usage = stored.get("usage")
+    if not isinstance(usage, dict):
+        errors.append(f"{prefix}.usage가 객체가 아닙니다.")
+        usage = {}
+    completion_tokens = usage.get("completion_tokens")
+    if completion_tokens is not None and (
+        not isinstance(completion_tokens, int)
+        or isinstance(completion_tokens, bool)
+        or completion_tokens < 0
+    ):
+        errors.append(f"{prefix}.usage.completion_tokens가 유효하지 않습니다.")
+        completion_tokens = None
+    latency = stored.get("latency_seconds")
+    if (
+        not isinstance(latency, (int, float))
+        or isinstance(latency, bool)
+        or not math.isfinite(latency)
+        or latency <= 0
+    ):
+        errors.append(f"{prefix}.latency_seconds가 유한한 양수가 아닙니다.")
+        latency = 0.000001
+    expected_rate = (
+        round(completion_tokens / float(latency), 3)
+        if completion_tokens is not None
+        else None
+    )
+    if expected_rate is None:
+        if stored.get("tokens_per_second") is not None:
+            errors.append(
+                f"{prefix}.tokens_per_second가 usage 재계산 결과와 다릅니다."
+            )
+    elif not _close(stored.get("tokens_per_second"), expected_rate):
+        errors.append(f"{prefix}.tokens_per_second가 usage 재계산 결과와 다릅니다.")
+    return usage, float(latency), expected_rate
+
+
 def validate_model_check(
     report: dict[str, Any],
     recipes: dict[str, Recipe],
@@ -190,20 +230,24 @@ def validate_model_check(
         )
         passed = content_passed and model_matched
         if recipe.slug == "vehicle-control-ko":
-            from .vehicle_control import parse_vehicle_action
+            from .vehicle_control import (
+                parse_vehicle_action,
+                vehicle_action_matches_example,
+            )
 
             try:
                 parsed_action = parse_vehicle_action(content)
             except RecipeError:
                 parsed_action = None
             contract_valid = parsed_action is not None
-            passed = passed and contract_valid
+            passed = passed and vehicle_action_matches_example(parsed_action, example)
             if case.get("action_contract_valid") is not contract_valid:
                 errors.append(
                     f"{prefix}.action_contract_valid가 재계산 결과와 다릅니다."
                 )
             if case.get("parsed_action") != parsed_action:
                 errors.append(f"{prefix}.parsed_action이 재계산 결과와 다릅니다.")
+        _performance_fields(case, prefix, errors)
         recomputed_passes.append(passed)
         if case.get("model_matched") is not model_matched:
             errors.append(f"{prefix}.model_matched가 재계산 결과와 다릅니다.")
@@ -369,14 +413,17 @@ def validate_server_baseline(
                 and model_matched
             )
             if recipe.slug == "vehicle-control-ko":
-                from .vehicle_control import parse_vehicle_action
+                from .vehicle_control import (
+                    parse_vehicle_action,
+                    vehicle_action_matches_example,
+                )
 
                 try:
                     parsed_action = parse_vehicle_action(content)
                 except RecipeError:
                     parsed_action = None
                 contract_valid = parsed_action is not None
-                passed = passed and contract_valid
+                passed = passed and vehicle_action_matches_example(parsed_action, example)
                 if stored.get("action_contract_valid") is not contract_valid:
                     errors.append(
                         f"{sample_prefix}.action_contract_valid가 재계산 결과와 다릅니다."
@@ -410,9 +457,10 @@ def validate_server_baseline(
             if (
                 not isinstance(latency, (int, float))
                 or isinstance(latency, bool)
+                or not math.isfinite(latency)
                 or latency <= 0
             ):
-                errors.append(f"{sample_prefix}.latency_seconds가 양수가 아닙니다.")
+                errors.append(f"{sample_prefix}.latency_seconds가 유한한 양수가 아닙니다.")
                 latency = 0.000001
             expected_rate = (
                 round(completion_tokens / float(latency), 3)
@@ -541,9 +589,13 @@ def _validate_endpoint_run(
             errors.append(f"{prefix}.model_matched가 재계산 결과와 다릅니다.")
         if stored.get("passed") is not passed:
             errors.append(f"{prefix}.passed가 재계산 결과와 다릅니다.")
+        usage, latency, tokens_per_second = _performance_fields(stored, prefix, errors)
         rebuilt = dict(stored)
         rebuilt.update(
             {
+                "usage": usage,
+                "latency_seconds": latency,
+                "tokens_per_second": tokens_per_second,
                 "assertions_passed": assertion_result["passed"],
                 "assertions": assertion_result["assertions"],
                 "model_matched": model_matched,

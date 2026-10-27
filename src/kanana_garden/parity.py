@@ -36,7 +36,7 @@ def run_endpoint(
             messages=[dict(message) for message in case.messages],
             generation=generation,
         )
-        latency = time.monotonic() - started
+        latency = max(round(time.monotonic() - started, 3), 0.001)
         assertion_result = evaluate_assertions(case, response.content)
         model_matched = response.model == model
         completion_tokens = response.usage.get("completion_tokens")
@@ -56,7 +56,7 @@ def run_endpoint(
                 "model_matched": model_matched,
                 "content": response.content,
                 "usage": response.usage,
-                "latency_seconds": round(latency, 3),
+                "latency_seconds": latency,
                 "tokens_per_second": (
                     round(tokens_per_second, 3)
                     if tokens_per_second is not None

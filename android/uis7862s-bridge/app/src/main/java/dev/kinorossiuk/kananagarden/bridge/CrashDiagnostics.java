@@ -15,7 +15,6 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Pattern;
 
 /** Stores bounded crash and handled-error diagnostics in the app-private files directory. */
 final class CrashDiagnostics {
@@ -23,10 +22,6 @@ final class CrashDiagnostics {
     private static final String HANDLED_FILE_NAME = "handled-errors.txt";
     private static final int MAX_CRASH_BYTES = 12 * 1024;
     private static final int MAX_HANDLED_BYTES = 16 * 1024;
-    private static final Pattern SECRET_ASSIGNMENT = Pattern.compile(
-            "(?i)((?:token|authorization|password)\\s*[:=]\\s*)[^\\s,;]+"
-    );
-    private static final Pattern BEARER_VALUE = Pattern.compile("(?i)(bearer\\s+)[^\\s,;]+");
     private static boolean installed;
 
     private CrashDiagnostics() {
@@ -198,8 +193,7 @@ final class CrashDiagnostics {
     }
 
     private static String redactSecrets(String value) {
-        String redacted = SECRET_ASSIGNMENT.matcher(value).replaceAll("$1[REDACTED]");
-        return BEARER_VALUE.matcher(redacted).replaceAll("$1[REDACTED]");
+        return SecretRedactor.redact(value);
     }
 
     private static String safeLine(String value) {

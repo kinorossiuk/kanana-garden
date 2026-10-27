@@ -129,7 +129,9 @@ systemctl --user restart kanana-report-receiver
 journalctl --user -u kanana-report-receiver -n 100 --no-pager
 ```
 
-USB가 가능한 예외 상황에는 다음 보조 경로를 사용할 수 있다.
+release APK는 non-debuggable이므로 `run-as` 기반 USB 수집이 불가능하다. LTE 장애
+시에는 앱의 `다른 앱으로 결과 공유`로 보고서를 낸 뒤 USB로 옮긴다. 다음 명령은
+`debuggable`인 디버그 시험 APK에서만 사용할 수 있다.
 
 ```bash
 kanana-garden uis7862s-report-pull

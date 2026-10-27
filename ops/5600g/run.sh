@@ -19,9 +19,12 @@ server_dtype="${KANANA_SERVER_DTYPE:-float32}"
 max_input_tokens="${KANANA_MAX_INPUT_TOKENS:-2048}"
 max_output_tokens="${KANANA_MAX_OUTPUT_TOKENS:-512}"
 
-if [[ "$server_host" != "127.0.0.1" && "$server_host" != "localhost" && -z "${KANANA_API_KEY:-}" ]]; then
-  echo "KANANA_API_KEY is required when binding outside loopback." >&2
-  exit 2
+if [[ "$server_host" != "127.0.0.1" && "$server_host" != "localhost" && "$server_host" != "::1" ]]; then
+  api_key="${KANANA_API_KEY:-}"
+  if (( ${#api_key} < 32 )) || [[ "$api_key" == replace-with-* ]]; then
+    echo "KANANA_API_KEY must be a non-placeholder value of at least 32 characters when binding outside loopback." >&2
+    exit 2
+  fi
 fi
 if [[ ! -x "$repo_dir/.venv/bin/kanana-garden" ]]; then
   echo "Missing $repo_dir/.venv. Run ops/5600g/install.sh first." >&2

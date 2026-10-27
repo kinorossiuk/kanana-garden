@@ -16,9 +16,9 @@ class AndroidBridgeTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn("VERSION_CODE=202", version)
-        self.assertIn("VERSION_NAME=0.2.2", version)
-        self.assertIn('version = "0.2.2"', package)
+        self.assertIn("VERSION_CODE=203", version)
+        self.assertIn("VERSION_NAME=0.2.3", version)
+        self.assertIn('version = "0.2.3"', package)
         self.assertIn('tags:\n      - "v*"', release)
         self.assertIn("secrets.ANDROID_SIGNING_KEY_BASE64", release)
         self.assertIn("secrets.ANDROID_SIGNING_PASSWORD", release)
@@ -77,6 +77,22 @@ class AndroidBridgeTests(unittest.TestCase):
         self.assertIn("audio.adjustVolume(direction", executor)
         self.assertNotIn("audio.adjustStreamVolume", executor)
 
+    def test_fyt_connection_failure_does_not_fall_back_as_success(self) -> None:
+        vendor = next(JAVA.rglob("FytVolumeController.java")).read_text(encoding="utf-8")
+        send = vendor[vendor.index("private boolean sendVolumeCommand") :]
+        self.assertIn("if (bound)", send)
+        self.assertIn("throw new IllegalStateException", send)
+        self.assertIn("module = getRemoteModule(toolkit, SOUND_MODULE)", send)
+        self.assertNotIn("return false;\n        } catch", send)
+
+    def test_destroyed_activity_does_not_receive_async_ui_callbacks(self) -> None:
+        activity = next(JAVA.rglob("MainActivity.java")).read_text(encoding="utf-8")
+        callbacks = activity[activity.index("private void submitReportOverLte") :]
+        self.assertGreaterEqual(
+            callbacks.count("if (isFinishing() || isDestroyed())"),
+            6,
+        )
+
     def test_release_keeps_private_bounded_crash_diagnostics(self) -> None:
         manifest = (BRIDGE / "app" / "src" / "main" / "AndroidManifest.xml").read_text(
             encoding="utf-8"
@@ -86,6 +102,7 @@ class AndroidBridgeTests(unittest.TestCase):
             encoding="utf-8"
         )
         activity = next(JAVA.rglob("MainActivity.java")).read_text(encoding="utf-8")
+        redactor = next(JAVA.rglob("SecretRedactor.java")).read_text(encoding="utf-8")
 
         self.assertIn('android:name=".BridgeApplication"', manifest)
         self.assertNotIn('android:debuggable="true"', manifest)
@@ -95,7 +112,12 @@ class AndroidBridgeTests(unittest.TestCase):
         self.assertIn("Context.MODE_PRIVATE", diagnostics)
         self.assertIn("MAX_CRASH_BYTES = 12 * 1024", diagnostics)
         self.assertIn("MAX_HANDLED_BYTES = 16 * 1024", diagnostics)
-        self.assertIn("[REDACTED]", diagnostics)
+        self.assertIn("[REDACTED]", redactor)
+        self.assertIn("SecretRedactor.redact(value)", diagnostics)
+        self.assertLess(
+            redactor.index("BEARER_VALUE.matcher"),
+            redactor.index("SECRET_ASSIGNMENT.matcher"),
+        )
         self.assertIn("CrashDiagnostics.readPending(this)", activity)
         self.assertIn("이전 앱 비정상 종료 진단", activity)
         self.assertIn("CrashDiagnostics.readHandled(this)", activity)
@@ -156,6 +178,20 @@ class AndroidBridgeTests(unittest.TestCase):
         self.assertIn("signatureSet(installed).equals(signatureSet(candidate))", updater)
         self.assertIn("actualSha256.equals(update.sha256)", updater)
         self.assertIn("Intent.ACTION_INSTALL_PACKAGE", updater)
+
+    def test_min_sdk_23_does_not_reference_newer_apis_unconditionally(self) -> None:
+        updater = next(JAVA.rglob("UpdateManager.java")).read_text(encoding="utf-8")
+        base_styles = (BRIDGE / "app" / "src" / "main" / "res" / "values" / "styles.xml").read_text(
+            encoding="utf-8"
+        )
+        sdk27_styles = (
+            BRIDGE / "app" / "src" / "main" / "res" / "values-v27" / "styles.xml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("connection.getContentLength()", updater)
+        self.assertNotIn("getContentLengthLong()", updater)
+        self.assertNotIn("android:windowLightNavigationBar", base_styles)
+        self.assertIn("android:windowLightNavigationBar", sdk27_styles)
 
     def test_report_receiver_deployment_is_separate_from_5600g(self) -> None:
         report_ops = ROOT / "ops" / "report-host"

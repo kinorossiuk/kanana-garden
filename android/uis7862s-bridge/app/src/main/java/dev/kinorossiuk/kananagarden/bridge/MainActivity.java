@@ -514,11 +514,17 @@ public final class MainActivity extends Activity {
                         BuildConfig.VERSION_NAME
                 );
                 runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) {
+                        return;
+                    }
                     submitButton.setEnabled(true);
                     showResult("제출 성공: " + response, false);
                 });
             } catch (RuntimeException | IOException error) {
                 runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) {
+                        return;
+                    }
                     recordDetailedError("report_submit", error);
                     submitButton.setEnabled(true);
                     showResult("LTE 제출 실패: " + error.getMessage(), true);
@@ -534,6 +540,9 @@ public final class MainActivity extends Activity {
             try {
                 UpdateManager.UpdateInfo update = UpdateManager.findAvailableUpdate();
                 runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) {
+                        return;
+                    }
                     updateButton.setEnabled(true);
                     if (update == null) {
                         showUpdateStatus("현재 설치본이 최신입니다: " + BuildConfig.VERSION_NAME, false);
@@ -543,6 +552,9 @@ public final class MainActivity extends Activity {
                 });
             } catch (IOException | RuntimeException error) {
                 runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) {
+                        return;
+                    }
                     recordDetailedError("update_check", error);
                     updateButton.setEnabled(true);
                     showUpdateStatus("업데이트 확인 실패: " + error.getMessage(), true);
@@ -555,6 +567,9 @@ public final class MainActivity extends Activity {
             UpdateManager.UpdateInfo update,
             Button updateButton
     ) {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
         showUpdateStatus("새 버전 발견: " + update.versionName, false);
         new AlertDialog.Builder(this)
                 .setTitle("앱 업데이트 " + update.versionName)
@@ -571,11 +586,17 @@ public final class MainActivity extends Activity {
             try {
                 File apk = UpdateManager.downloadAndVerify(this, update);
                 runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) {
+                        return;
+                    }
                     updateButton.setEnabled(true);
                     offerVerifiedUpdateInstall(update, apk);
                 });
             } catch (IOException | RuntimeException error) {
                 runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) {
+                        return;
+                    }
                     recordDetailedError("update_download", error);
                     updateButton.setEnabled(true);
                     showUpdateStatus("업데이트 검증 실패: " + error.getMessage(), true);
@@ -585,6 +606,9 @@ public final class MainActivity extends Activity {
     }
 
     private void offerVerifiedUpdateInstall(UpdateManager.UpdateInfo update, File apk) {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
         if (!UpdateManager.canRequestInstall(this)) {
             showUpdateStatus(
                     "APK 검증 완료. 이 앱의 '알 수 없는 앱 설치'를 허용한 뒤 업데이트 확인을 다시 누르세요.",

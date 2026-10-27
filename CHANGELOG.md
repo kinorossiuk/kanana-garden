@@ -3,6 +3,17 @@
 이 프로젝트는 Git 태그에는 Semantic Versioning prerelease 표기를, Python
 패키지에는 동등한 PEP 440 표기를 사용합니다.
 
+## v0.2.3 — 2026-10-27
+
+UIS7862S 실기기 시험용 제어 브리지와 검증 도구를 보완한 테스트 릴리스입니다.
+
+- FYT 서비스 연결·명령 실패 처리, Android 버전 호환성 및 비동기 UI 처리 보완
+- 차량 평가에서 기대 action과 선언된 볼륨·목적지 slot을 함께 확인
+- 성능 리포트 재검산, OTA 파일 저장 실패 처리, 인증 예제 값 검증 보완
+- release APK의 보고서 공유·LTE 제출 경로와 `run-as` 제한 문서화
+- Python 테스트 122개, Android debug 테스트·빌드·lint 및 서명 없는 release 빌드·lint 통과
+- 실제 헤드유닛·실모델 동작은 아직 확인하지 않았으며, 입력 검증과 낮은 confidence 확인 관련 미해결 사항은 `docs/CODE_REVIEW_COMPLETION.md` 참고
+
 ## v0.2.2 — 2026-08-15
 
 UIS7862S 실장비에서 확인된 볼륨 무반응과 LTE 설정 사용성을 수정한 릴리스입니다.

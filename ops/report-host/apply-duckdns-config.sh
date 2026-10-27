@@ -30,12 +30,31 @@ for required_file in "$secret_file" "$duck_script" "$jenkins_compose" "$jenkins_
   fi
 done
 
-IFS= read -r token < "$secret_file"
-if [[ ! "$token" =~ ^[A-Za-z0-9-]{20,128}$ ]]; then
+token="$(<"$secret_file")"
+if [[ "$token" == *$'\n'* || "$token" == *$'\r'* || ! "$token" =~ ^[A-Za-z0-9-]{20,128}$ ]]; then
   unset token
   echo "보호 파일의 DuckDNS 토큰 형식이 올바르지 않습니다." >&2
   exit 1
 fi
+
+if ! grep -Eq '^dns_duckdns_token[[:space:]]*=' "$certbot_renewal"; then
+  unset token
+  echo "Certbot DuckDNS 토큰 항목을 찾지 못했습니다." >&2
+  exit 1
+fi
+if ! grep -Fq '/run/secrets/duckdns-token:ro' "$jenkins_compose" \
+    && ! grep -Fq './jenkins_home:/var/jenkins_home' "$jenkins_compose"; then
+  unset token
+  echo "Jenkins volume 삽입 위치를 찾지 못했습니다." >&2
+  exit 1
+fi
+python3 - "$jenkins_job" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+root = ET.parse(sys.argv[1]).getroot()
+if root.tag != "project" or root.find("builders") is None or root.find("triggers") is None:
+    raise SystemExit("Jenkins job의 builders/triggers 구조를 확인할 수 없습니다.")
+PY
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 backup_dir="$owner_home/.config/kanana-garden/backups/duckdns-$timestamp"
@@ -47,11 +66,20 @@ for source_file in "$duck_script" "$jenkins_compose" "$jenkins_job" "$certbot_re
   chmod 0600 "$backup_file"
 done
 
-secret_tmp="$(mktemp "$(dirname "$secret_file")/.duckdns-token.XXXXXX")"
-printf '%s' "$token" > "$secret_tmp"
-chown "$owner_user:$owner_group" "$secret_tmp"
-chmod 0600 "$secret_tmp"
-mv -f "$secret_tmp" "$secret_file"
+changes_started=0
+apply_complete=0
+rollback_on_exit() {
+  status=$?
+  if (( apply_complete == 0 && changes_started == 1 )); then
+    echo "DuckDNS 설정 적용 실패: 이전 파일을 복원합니다." >&2
+    for source_file in "$duck_script" "$jenkins_compose" "$jenkins_job" "$certbot_renewal"; do
+      backup_file="$backup_dir/$(printf '%s' "$source_file" | sed 's#^/##; s#/#__#g')"
+      cp "$backup_file" "$source_file" || echo "복원 실패: $source_file" >&2
+    done
+  fi
+  exit "$status"
+}
+trap rollback_on_exit EXIT
 
 duck_tmp="$(mktemp)"
 cat > "$duck_tmp" <<'EOF'
@@ -80,6 +108,7 @@ if [[ "$response" != "OK" ]]; then
 fi
 printf '%s\n' "$response"
 EOF
+changes_started=1
 install -o "$owner_user" -g "$owner_group" -m 0700 "$duck_tmp" "$duck_script"
 rm -f "$duck_tmp"
 
@@ -108,46 +137,55 @@ chmod --reference="$jenkins_compose" "$compose_tmp"
 mv -f "$compose_tmp" "$jenkins_compose"
 
 job_tmp="$(mktemp)"
-cat > "$job_tmp" <<'EOF'
-<?xml version='1.1' encoding='UTF-8'?>
-<project>
-  <actions/>
-  <description>DuckDNS 업데이트. 토큰은 /run/secrets/duckdns-token에서 읽습니다.</description>
-  <keepDependencies>false</keepDependencies>
-  <properties/>
-  <scm class="hudson.scm.NullSCM"/>
-  <canRoam>true</canRoam>
-  <disabled>false</disabled>
-  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
-  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
-  <triggers>
-    <hudson.triggers.TimerTrigger>
-      <spec>H/5 * * * *</spec>
-    </hudson.triggers.TimerTrigger>
-  </triggers>
-  <concurrentBuild>false</concurrentBuild>
-  <builders>
-    <hudson.tasks.Shell>
-      <command>set +x
+python3 - "$jenkins_job" "$job_tmp" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+source, destination = sys.argv[1:]
+tree = ET.parse(source)
+root = tree.getroot()
+builders = root.find("builders")
+triggers = root.find("triggers")
+command_text = '''set +x
 token_file=/run/secrets/duckdns-token
 if [ ! -r "$token_file" ]; then
-  echo "DuckDNS token file is not readable" &gt;&amp;2
+  echo "DuckDNS token file is not readable" >&2
   exit 1
 fi
-response="$(curl --silent --show-error --fail --get \
-  --data-urlencode 'domains=rossiuk-server' \
-  --data-urlencode "token@$token_file" \
-  --data-urlencode 'ip=' \
+response="$(curl --silent --show-error --fail --get \\
+  --data-urlencode 'domains=rossiuk-server' \\
+  --data-urlencode "token@$token_file" \\
+  --data-urlencode 'ip=' \\
   https://www.duckdns.org/update)"
-printf '%s\n' "$response"
-test "$response" = OK</command>
-      <configuredLocalRules/>
-    </hudson.tasks.Shell>
-  </builders>
-  <publishers/>
-  <buildWrappers/>
-</project>
-EOF
+printf '%s\\n' "$response"
+test "$response" = OK'''
+shells = [
+    shell for shell in builders.findall("hudson.tasks.Shell")
+    if "duckdns.org/update" in (shell.findtext("command") or "")
+    or "/run/secrets/duckdns-token" in (shell.findtext("command") or "")
+]
+if len(shells) > 1:
+    raise SystemExit("DuckDNS Jenkins shell이 여러 개라 안전하게 갱신할 수 없습니다.")
+if shells:
+    shell = shells[0]
+else:
+    shell = ET.SubElement(builders, "hudson.tasks.Shell")
+    ET.SubElement(shell, "configuredLocalRules")
+command = shell.find("command")
+if command is None:
+    command = ET.SubElement(shell, "command")
+command.text = command_text
+timers = triggers.findall("hudson.triggers.TimerTrigger")
+if not timers:
+    timers = [ET.SubElement(triggers, "hudson.triggers.TimerTrigger")]
+for timer in timers:
+    spec = timer.find("spec")
+    if spec is None:
+        spec = ET.SubElement(timer, "spec")
+    spec.text = "H/5 * * * *"
+ET.indent(tree, space="  ")
+tree.write(destination, encoding="UTF-8", xml_declaration=True)
+PY
 chown --reference="$jenkins_job" "$job_tmp"
 chmod --reference="$jenkins_job" "$job_tmp"
 mv -f "$job_tmp" "$jenkins_job"
@@ -171,6 +209,8 @@ fi
 install -o root -g root -m 0600 "$certbot_tmp" "$certbot_renewal"
 rm -f "$certbot_tmp"
 
+apply_complete=1
+trap - EXIT
 echo "DuckDNS 설정 반영 완료"
 echo "보안 백업: $backup_dir"
 echo "Jenkins는 다음 docker compose 기동 때 보호 토큰을 읽습니다."

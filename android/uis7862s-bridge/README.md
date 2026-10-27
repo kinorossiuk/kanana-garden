@@ -1,27 +1,28 @@
 # UIS7862S 0단계 제어 브리지
 
 LLM을 탑재하기 전에 UIS7862S Android 펌웨어가 차량 제어 API를 허용하는지
-확인하는 벤치 테스트용 APK입니다. 앱은 네트워크 권한, 임의 package 실행,
-shell 실행, 접근성 서비스와 화면 좌표 조작을 사용하지 않습니다.
+확인하는 벤치 테스트용 APK입니다. 인터넷 권한은 앱 업데이트와 LTE 보고서
+제출에 사용합니다. 임의 package 실행, shell 실행, 접근성 서비스와 화면 좌표
+조작은 사용하지 않습니다.
 
 ## 설치
 
 GitHub Release에서 다음 두 파일을 같은 디렉터리에 받습니다.
 
-- `kanana-garden-bridge-0.2.2-release.apk`
-- `kanana-garden-bridge-0.2.2-release.apk.sha256`
+- `kanana-garden-bridge-0.2.3-release.apk`
+- `kanana-garden-bridge-0.2.3-release.apk.sha256`
 
-PC에서 해시를 확인하고 UIS7862S에 설치합니다. 앱 제목에는 `0.2.2`, GitHub
-Release에는 `v0.2.2`가 표시됩니다.
+PC에서 해시를 확인하고 UIS7862S에 설치합니다. 앱 제목에는 `0.2.3`, GitHub
+Release에는 `v0.2.3`가 표시됩니다.
 
 ```bash
-sha256sum -c kanana-garden-bridge-0.2.2-release.apk.sha256
-adb install kanana-garden-bridge-0.2.2-release.apk
+sha256sum -c kanana-garden-bridge-0.2.3-release.apk.sha256
+adb install kanana-garden-bridge-0.2.3-release.apk
 adb shell am start -n \
   dev.kinorossiuk.kananagarden.bridge/.MainActivity
 ```
 
-v0.2.0은 OTA용 전용 키로 서명한 첫 버전이며 v0.2.2도 같은 키를 사용합니다.
+v0.2.0은 OTA용 전용 키로 서명한 첫 버전이며 v0.2.3도 같은 키를 사용합니다.
 기존 alpha.2 또는 CI debug APK가 있으면 서명자가 다르므로 기존 테스트 앱을 한 번
 삭제한 뒤 설치해야 합니다. v0.2.0 이후 버전끼리는 앱 안에서 업데이트할 수 있습니다.
 주행 중에는 설치하거나 조작하지 마세요.
@@ -116,7 +117,10 @@ HTTPS 수신 주소: https://YOUR_SUBDOMAIN.duckdns.org:8443
 만들고 유출 시 즉시 교체해야 합니다. 수신기는 반드시 loopback에만 바인딩하고
 nginx/Tunnel을 통해서만 접근시킵니다.
 
-USB/ADB 수집은 LTE 장애 시에만 사용합니다.
+USB/ADB 수집은 LTE 장애 시에만 사용합니다. release APK는 `debuggable`이 아니므로
+Android가 `run-as`의 비공개 파일 접근을 거부합니다. release에서는 앱의
+`다른 앱으로 결과 공유`로 보고서를 낸 뒤 USB로 옮기세요. 아래 명령은 디버그 APK처럼
+`debuggable`인 시험 빌드에서만 사용할 수 있습니다.
 
 ```bash
 kanana-garden uis7862s-report-pull

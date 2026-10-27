@@ -52,11 +52,26 @@ def _short_text(value: Any, name: str) -> str:
     return cleaned
 
 
+def vehicle_action_matches_example(
+    action: dict[str, Any] | None, example: dict[str, Any]
+) -> bool:
+    """Check the expected action and exact slots when an example declares them."""
+    if action is None:
+        return False
+    expected_action = example.get("expected_action")
+    expected_slots = example.get("expected_slots")
+    return (expected_action is None or action.get("action") == expected_action) and (
+        expected_slots is None or action.get("slots") == expected_slots
+    )
+
+
 def parse_vehicle_action(content: str) -> dict[str, Any]:
     """Parse a model response without allowing executable free-form fields."""
 
     if not isinstance(content, str) or not content.strip():
         raise RecipeError("차량 제어 응답이 비어 있습니다.")
+    if len(content.encode("utf-16-be")) // 2 > 4096:
+        raise RecipeError("차량 제어 응답은 UTF-16 기준 4096자 이하여야 합니다.")
     try:
         value = json.loads(content)
     except json.JSONDecodeError as exc:

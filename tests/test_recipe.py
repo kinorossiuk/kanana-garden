@@ -52,6 +52,13 @@ class RecipeTests(unittest.TestCase):
         self.assertTrue(any("자리표시자" in error for error in errors))
         self.assertTrue(any("알 수 없는 필드" in error for error in errors))
 
+    def test_expected_slots_require_an_action_and_an_object(self) -> None:
+        data = valid_mapping()
+        data["examples"][0]["expected_slots"] = []
+        errors = validate_mapping(data)
+        self.assertTrue(any("expected_slots는 객체" in error for error in errors))
+        self.assertTrue(any("expected_action이 필요" in error for error in errors))
+
     def test_reports_multiple_generation_errors(self) -> None:
         data = valid_mapping()
         data["generation"] = {

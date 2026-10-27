@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd -- "$script_dir/../.." && pwd)"
@@ -15,6 +16,7 @@ if [[ ! -e "$config_dir/server.env" ]]; then
     "$script_dir/server.env.example" > "$config_dir/server.env"
   echo "Created $config_dir/server.env; set KANANA_API_KEY and HF_HOME."
 fi
+chmod 0600 "$config_dir/server.env"
 user_unit_dir="$HOME/.config/systemd/user"
 mkdir -p "$user_unit_dir"
 install -m 0644 "$script_dir/kanana-garden.service" \

@@ -54,6 +54,8 @@ def _filename_from_url(url: str) -> str:
 def _checked_filename(value: str) -> str:
     if Path(value).name != value or value in {"", ".", ".."}:
         raise RecipeError("--filename은 디렉터리 없는 파일명이어야 합니다.")
+    if value == "manifest.json":
+        raise RecipeError("OTA 파일명 manifest.json은 메타데이터 파일과 충돌합니다.")
     return value
 
 
@@ -152,6 +154,11 @@ def download_ota(
             encoding="utf-8",
         )
     except OSError as exc:
+        for created in (target, manifest_path):
+            try:
+                created.unlink(missing_ok=True)
+            except OSError:
+                pass
         raise RecipeError(f"OTA manifest를 쓸 수 없습니다: {exc}") from exc
     return {**manifest, "path": str(target), "manifest": str(manifest_path)}
 

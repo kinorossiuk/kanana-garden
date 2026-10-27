@@ -191,7 +191,12 @@ def validate_mapping(data: dict[str, Any]) -> list[str]:
             if not isinstance(example, dict):
                 errors.append(f"examples[{index}]는 JSON 객체여야 합니다.")
                 continue
-            allowed = {"input", "expected_contains"}
+            allowed = {
+                "input",
+                "expected_contains",
+                "expected_action",
+                "expected_slots",
+            }
             unknown = example.keys() - allowed
             if unknown:
                 errors.append(
@@ -205,6 +210,19 @@ def validate_mapping(data: dict[str, Any]) -> list[str]:
                 errors.append(
                     f"examples[{index}].expected_contains는 비어 있을 수 없습니다."
                 )
+            if "expected_action" in example and not _is_nonempty_string(
+                example["expected_action"]
+            ):
+                errors.append(
+                    f"examples[{index}].expected_action은 비어 있을 수 없습니다."
+                )
+            if "expected_slots" in example:
+                if not isinstance(example["expected_slots"], dict):
+                    errors.append(f"examples[{index}].expected_slots는 객체여야 합니다.")
+                if "expected_action" not in example:
+                    errors.append(
+                        f"examples[{index}].expected_slots에는 expected_action이 필요합니다."
+                    )
 
     return errors
 

@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 from kanana_garden.ota import download_ota, verify_ota
 from kanana_garden.recipe import RecipeError
@@ -55,6 +56,38 @@ class OTATests(unittest.TestCase):
                 )
             version_dir = root / "bad-build"
             self.assertEqual(list(version_dir.iterdir()), [])
+
+    def test_manifest_filename_collision_is_rejected_before_download(self) -> None:
+        for url, filename in (
+            ("https://vendor.example.test/manifest.json", None),
+            ("https://vendor.example.test/update.zip", "manifest.json"),
+        ):
+            with self.subTest(url=url, filename=filename), tempfile.TemporaryDirectory() as directory:
+                with self.assertRaisesRegex(RecipeError, "충돌"):
+                    download_ota(
+                        version="v1",
+                        url=url,
+                        filename=filename,
+                        sha256="0" * 64,
+                        output_dir=Path(directory),
+                        opener=lambda *_args, **_kwargs: self.fail("다운로드가 호출됨"),
+                    )
+                self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_manifest_write_failure_removes_artifact_for_retry(self) -> None:
+        payload = b"firmware"
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(
+            Path, "write_text", side_effect=OSError("disk full")
+        ):
+            with self.assertRaisesRegex(RecipeError, "manifest"):
+                download_ota(
+                    version="v1",
+                    url="https://vendor.example.test/update.zip",
+                    sha256=hashlib.sha256(payload).hexdigest(),
+                    output_dir=Path(directory),
+                    opener=lambda _request, timeout: FakeResponse(payload),
+                )
+            self.assertEqual(list((Path(directory) / "v1").iterdir()), [])
 
     def test_verify_detects_tampered_ota(self) -> None:
         payload = b"firmware"

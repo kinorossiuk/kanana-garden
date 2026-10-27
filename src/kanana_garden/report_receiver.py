@@ -29,6 +29,7 @@ def validate_receiver_token(token: str | None) -> str:
         or not 32 <= len(token) <= MAX_TOKEN_LENGTH
         or "\n" in token
         or "\r" in token
+        or token.startswith("replace-with-")
     ):
         raise ReportReceiverError("KANANA_REPORT_TOKEN은 줄바꿈 없는 32~512자여야 합니다.")
     return token

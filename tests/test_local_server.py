@@ -4,7 +4,7 @@ import unittest
 from urllib import error, request
 
 from kanana_garden.client import KananaClient
-from kanana_garden.local_server import LocalModelServer
+from kanana_garden.local_server import LocalModelServer, serve
 
 
 MODEL = "kakaocorp/kanana-2-1.3b-instruct"
@@ -72,6 +72,23 @@ class LocalServerTests(unittest.TestCase):
         with self.assertRaises(error.HTTPError) as raised:
             request.urlopen(f"{self.base_url}/models", timeout=2)
         self.assertEqual(raised.exception.code, 401)
+
+    def test_external_bind_rejects_placeholder_and_short_api_keys(self) -> None:
+        for api_key in (None, "short", "replace-with-a-long-random-token"):
+            with self.subTest(api_key=api_key), self.assertRaisesRegex(
+                RuntimeError, "32자"
+            ):
+                serve(
+                    host="0.0.0.0",
+                    port=8000,
+                    model_id=MODEL,
+                    revision="revision",
+                    max_input_tokens=100,
+                    max_output_tokens=20,
+                    threads=1,
+                    dtype="float32",
+                    api_key=api_key,
+                )
 
     def test_rejects_streaming(self) -> None:
         body = json.dumps(

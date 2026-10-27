@@ -36,8 +36,8 @@ UIS7862S Android 헤드유닛에서 “볼륨 올려줘”, “강남역으로 �
 - 두 개의 서로 다른 서버 session에서 전체 recipe를 각각 3회 반복한다.
 - `server-compare`로 재시작 후 품질·설정 동일성을 확인한다.
 
-통과 조건: 두 서버 session의 모든 차량 action 예제가 계약 검증까지 통과하고
-미해결 crash/OOM이 없다.
+통과 조건: 두 서버 session의 모든 차량 action 예제가 계약 및 기대 action·slot
+검증까지 통과하고 미해결 crash/OOM이 없다.
 
 ### 2단계: 하이브리드 통합
 

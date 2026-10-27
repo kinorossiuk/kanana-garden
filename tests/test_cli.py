@@ -28,7 +28,7 @@ class CLITests(unittest.TestCase):
             with self.assertRaises(SystemExit) as raised:
                 build_parser().parse_args(["--version"])
         self.assertEqual(raised.exception.code, 0)
-        self.assertEqual(stdout.getvalue().strip(), "kanana-garden 0.2.2")
+        self.assertEqual(stdout.getvalue().strip(), "kanana-garden 0.2.3")
 
     def test_list_json(self) -> None:
         status, stdout, stderr = self.invoke("list", "--json")
@@ -433,6 +433,25 @@ class CLITests(unittest.TestCase):
             self.assertEqual(report["requested_model"], model)
             self.assertEqual(report["cases"][0]["usage"]["total_tokens"], 42)
             self.assertEqual(json.loads(output.read_text(encoding="utf-8")), report)
+
+    @mock.patch("kanana_garden.cli.KananaClient")
+    def test_vehicle_check_rejects_wrong_volume_slot(self, client_class: mock.Mock) -> None:
+        model = "kakaocorp/kanana-2-1.3b-instruct"
+        client_class.return_value.list_models.return_value = [model]
+        client_class.return_value.chat.return_value = ChatResult(
+            content=(
+                '{"action":"volume_set","slots":{"level_percent":80},'
+                '"confidence":"high","requires_confirmation":false}'
+            ),
+            model=model,
+            usage={},
+        )
+        status, stdout, _ = self.invoke("check", "vehicle-control-ko", "--json")
+        report = json.loads(stdout)
+        self.assertEqual(status, 1)
+        self.assertFalse(report["passed"])
+        self.assertTrue(report["cases"][2]["action_contract_valid"])
+        self.assertFalse(report["cases"][2]["passed"])
 
     @mock.patch("kanana_garden.cli.KananaClient")
     def test_check_rejects_unexposed_model(self, client_class: mock.Mock) -> None:

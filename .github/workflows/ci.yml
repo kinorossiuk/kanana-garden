@@ -55,8 +55,8 @@ jobs:
         run: |
           version_name="$(sed -n 's/^VERSION_NAME=//p' android/uis7862s-bridge/version.properties)"
           echo "VERSION_NAME=$version_name" >> "$GITHUB_ENV"
-      - name: Build debug APK
-        run: gradle -p android/uis7862s-bridge --no-daemon :app:assembleDebug
+      - name: Test, build and lint debug APK
+        run: gradle -p android/uis7862s-bridge --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
       - name: Verify and checksum APK
         run: |
           cp android/uis7862s-bridge/app/build/outputs/apk/debug/app-debug.apk \

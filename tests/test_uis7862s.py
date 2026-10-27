@@ -149,6 +149,17 @@ class UIS7862STests(unittest.TestCase):
             )
             self.assertRegex(artifact["sha256"], r"^sha256:[0-9a-f]{64}$")
 
+    def test_run_as_failure_explains_release_alternatives(self) -> None:
+        class ReleaseAdbClient(FakeAdbClient):
+            def exec_out(self, arguments, timeout=None):
+                return AdbResult(
+                    tuple(arguments), 1, b"run-as: package not debuggable", "", 0.01
+                )
+
+        client = ReleaseAdbClient()
+        with self.assertRaisesRegex(Exception, "release APK.*결과 공유"):
+            pull_stage_zero_report(client=client)
+
     def test_pull_stage_zero_report_uses_bounded_run_as_transport(self) -> None:
         class ReportAdbClient(FakeAdbClient):
             def exec_out(self, arguments, timeout=None):

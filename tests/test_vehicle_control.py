@@ -1,3 +1,4 @@
+import json
 import unittest
 
 from kanana_garden.recipe import RecipeError
@@ -29,6 +30,17 @@ class VehicleControlTests(unittest.TestCase):
             with self.subTest(content=content):
                 with self.assertRaises(RecipeError):
                     parse_vehicle_action(content)
+
+    def test_rejects_payload_over_android_utf16_limit(self) -> None:
+        action = {
+            "action": "volume_up",
+            "slots": {},
+            "confidence": "high",
+            "requires_confirmation": False,
+        }
+        content = json.dumps(action) + " " * 4096
+        with self.assertRaisesRegex(RecipeError, "4096"):
+            parse_vehicle_action(content)
 
     def test_rejects_markdown_wrapped_json(self) -> None:
         with self.assertRaisesRegex(RecipeError, "JSON 객체"):
